@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>O&M Manual Builder</title>
+    <link rel="stylesheet" href="styles.css?v=20260513-clean-trade-options" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="brand-logo" aria-hidden="true">
+          <svg viewBox="0 0 96 96" role="img">
+            <path class="logo-building" d="M52 16h28v64H52zM58 24h6v7h-6zM69 24h6v7h-6zM58 37h6v7h-6zM69 37h6v7h-6zM58 50h6v7h-6zM69 50h6v7h-6zM61 66h12v14H61z" />
+            <path class="logo-person" d="M28 21a9 9 0 1 1 0 18 9 9 0 0 1 0-18zM15 79l4-29c1-6 5-10 11-10h1c5 0 9 3 11 8l3 9 12 5-4 8-15-6-4-10-3 25z" />
+            <path class="logo-manual" d="M42 45l23 7-5 22-23-7zM47 53l12 4M45 60l12 4" />
+          </svg>
+        </div>
+        <div>
+          <p class="eyebrow">Operations and Maintenance</p>
+          <h1>Manual Builder</h1>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="secondary" id="loadSample" type="button">Sample</button>
+        <button class="secondary" id="clearDraft" type="button">Clear</button>
+        <button class="secondary" id="togglePreview" type="button">Hide Preview</button>
+        <label class="toc-toggle">
+          <input id="includeToc" type="checkbox" checked />
+          Include linked TOC
+        </label>
+        <button id="printManual" type="button">Generate PDF</button>
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <section class="workspace" aria-label="O&M information form">
+        <nav class="tabs" aria-label="Manual sections">
+          <button class="tab active" data-tab="dashboard" type="button">Dashboard</button>
+          <button class="tab" data-tab="project" type="button">Project</button>
+          <button class="tab" data-tab="introduction" type="button">Intro & Scope</button>
+          <button class="tab" data-tab="contacts" type="button">Key Contacts</button>
+          <button class="tab" data-tab="equipment" type="button">Assets</button>
+          <button class="tab" data-tab="maintenance" type="button">Maintenance</button>
+          <button class="tab" data-tab="technical" type="button">Technical Data</button>
+          <button class="tab" data-tab="warranties" type="button">Warranties</button>
+          <button class="tab" data-tab="certificates" type="button">Certificates</button>
+          <button class="tab" data-tab="commissioning" type="button">Commissioning</button>
+          <button class="tab" data-tab="spares" type="button">Spare Parts</button>
+          <button class="tab" data-tab="asBuilts" type="button">As Builts</button>
+          <button class="tab" data-tab="documents" type="button">Documents</button>
+          <button class="tab" data-tab="safety" type="button">Safety</button>
+        </nav>
+
+        <section class="folder-picker" aria-label="Virtual folder selector">
+          <label>
+            Tier 1 - Discipline
+            <select id="disciplineSelect"></select>
+          </label>
+          <label>
+            Tier 2 - Trade
+            <select id="tradeSelect"></select>
+          </label>
+          <label>
+            Tier 3 - Sub-Trade
+            <select id="subTradeSelect"></select>
+          </label>
+        </section>
+
+        <section class="folder-edit" aria-label="Edit selected virtual folder path">
+          <label>
+            Edit Discipline
+            <input id="editDiscipline" placeholder="Discipline" />
+          </label>
+          <label>
+            Edit Trade
+            <input id="editTrade" placeholder="Trade" />
+          </label>
+          <label>
+            Edit Sub-Trade
+            <input id="editSubTrade" placeholder="Sub-Trade" />
+          </label>
+          <button class="secondary" id="updateFolderPath" type="button">Update Selected Path</button>
+        </section>
+
+        <form id="manualForm" autocomplete="off">
+          <section class="panel active" data-panel="dashboard">
+            <div class="section-title">
+              <h2>Dashboard</h2>
+              <p>Track completion, outstanding items, asset counts, and total asset value.</p>
+            </div>
+            <div id="dashboardContent" class="dashboard-content"></div>
+          </section>
+
+          <section class="panel" data-panel="project">
+            <div class="section-title">
+              <h2>Project Details</h2>
+              <p>Core cover-page and handover information.</p>
+            </div>
+            <div class="field-grid">
+              <label>
+                Project name
+                <input name="projectName" placeholder="Example: North Wing HVAC Upgrade" />
+              </label>
+              <label>
+                Client
+                <input name="clientName" placeholder="Client or asset owner" />
+              </label>
+              <label>
+                Site address
+                <input name="siteAddress" placeholder="Street, suburb, state" />
+              </label>
+              <label>
+                Prepared by
+                <input name="preparedBy" placeholder="Company / author" />
+              </label>
+              <label>
+                Manual revision
+                <input name="revision" placeholder="A, B, 01..." />
+              </label>
+              <label>
+                Handover date
+                <input name="handoverDate" type="date" />
+              </label>
+            </div>
+            <div class="project-image-field">
+              <label>
+                Project image
+                <input id="projectImageInput" type="file" accept="image/*" />
+              </label>
+              <button class="secondary" id="clearProjectImage" type="button">Clear Image</button>
+              <div class="project-image-preview" id="projectImagePreview">No image selected</div>
+            </div>
+            <label class="wide">
+              Project summary
+              <textarea name="projectSummary" rows="5" placeholder="Describe the scope, installed assets, key assumptions, and operating intent."></textarea>
+            </label>
+            <div class="project-admin-link">
+              <button class="secondary" id="openAdministration" type="button">Open Settings</button>
+            </div>
+          </section>
+
+          <section class="panel" data-panel="settings">
+            <div class="project-database">
+              <label>
+                Saved projects
+                <select id="projectDatabaseSelect"></select>
+              </label>
+              <label>
+                Project database name
+                <input id="projectDatabaseName" placeholder="Example: Project XYZ" />
+              </label>
+              <div class="project-database-actions">
+                <button id="newProjectRecord" type="button">New Project</button>
+                <button class="secondary" id="saveProjectRecord" type="button">Save Project</button>
+                <button class="secondary" id="openProjectRecord" type="button">Open Project</button>
+                <button class="secondary" id="duplicateProjectRecord" type="button">Duplicate</button>
+                <button class="secondary" id="deleteProjectRecord" type="button">Delete</button>
+              </div>
+            </div>
+            <div class="section-title folder-builder-title">
+              <h2>Manual Folders Structure</h2>
+              <p>Add a Discipline, Trade, and Sub-Trade path. Pick a path above to edit the sections inside it.</p>
+            </div>
+            <div class="field-grid folder-builder">
+              <label>
+                Discipline
+                <input id="newDiscipline" placeholder="Example: Electrical" />
+              </label>
+              <label>
+                Trade
+                <input id="newTrade" placeholder="Example: Lighting" />
+              </label>
+              <label>
+                Sub-Trade
+                <input id="newSubTrade" placeholder="Example: Emergency Lighting" />
+              </label>
+              <button id="addFolderPath" type="button">Add Folder Path</button>
+            </div>
+            <div class="section-title folder-builder-title">
+              <h2>Service Classification Register</h2>
+              <p>Manage industry-standard Service Name and Sub Service values used by the asset register.</p>
+            </div>
+            <div class="service-classification-builder">
+              <div id="serviceClassificationTable" class="service-classification-table"></div>
+            </div>
+            <div class="section-title with-action site-details-title">
+              <div>
+                <h2>Site Details Register</h2>
+                <p>Capture reusable location values for asset records.</p>
+              </div>
+            </div>
+            <div class="site-tree-builder">
+              <div class="field-grid">
+                <label>
+                  Site Name
+                  <input id="siteDetailSite" placeholder="Example: Sample Site" />
+                </label>
+                <label>
+                  Structure Name
+                  <input id="siteDetailStructure" placeholder="Example: Main Building" />
+                </label>
+                <label>
+                  Level Name
+                  <input id="siteDetailLevel" placeholder="Example: Level 1" />
+                </label>
+                <label>
+                  Space Name
+                  <input id="siteDetailSpace" placeholder="Example: Plant Room" />
+                </label>
+              </div>
+              <label class="wide">
+                Location Description
+                <input id="siteDetailDescription" placeholder="Example: Mechanical plantroom serving the north wing" />
+              </label>
+              <button id="addSiteDetailPath" type="button">Add Location Path</button>
+              <p id="siteDetailsMessage" class="inline-status" aria-live="polite"></p>
+              <div id="siteDetailsTree" class="site-details-tree"></div>
+            </div>
+            <div class="section-title with-action folder-builder-title">
+              <div>
+                <h2>Templates</h2>
+                <p>Manage site details, folder structure via Excel import/export.</p>
+              </div>
+              <div class="admin-actions">
+                <button class="secondary" id="exportExcel" type="button">Export Excel</button>
+                <button class="secondary" id="importExcel" type="button">Import Excel</button>
+                <input id="excelFileInput" type="file" accept=".xlsx,.xls" hidden />
+              </div>
+            </div>
+          </section>
+
+          <section class="panel" data-panel="introduction">
+            <div class="section-title">
+              <h2>Introduction & Scope</h2>
+              <p>Describe the manual purpose, included works, exclusions, and handover boundaries.</p>
+            </div>
+            <label class="wide">
+              Introduction
+              <textarea name="introduction" rows="5" placeholder="Introduce the project, manual purpose, and intended users."></textarea>
+            </label>
+            <label class="wide">
+              Scope of works
+              <textarea name="scopeOfWorks" rows="6" placeholder="List included assets, services, areas, documents, and exclusions."></textarea>
+            </label>
+          </section>
+
+          <section class="panel" data-panel="contacts">
+            <div class="section-title with-action">
+              <div>
+                <h2>Key Contacts</h2>
+                <p>People responsible for operation, service, warranty, and emergency support.</p>
+              </div>
+              <button class="secondary add-row" data-list="contacts" type="button">Add Contact</button>
+            </div>
+            <div class="table-editor">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Company Name</th>
+                    <th>Trade</th>
+                    <th>Address</th>
+                    <th>Phone Numbers</th>
+                    <th>Emails</th>
+                    <th>Website</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="contactsRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel" data-panel="equipment">
+            <div class="section-title with-action">
+              <div>
+                <h2>Assets Register</h2>
+                <p>Capture asset hierarchy, service, location, product, warranty, cost, and update details.</p>
+              </div>
+              <button class="secondary add-row" data-list="equipment" type="button">Add Asset</button>
+            </div>
+            <div class="table-editor">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Asset ID</th>
+                    <th>Parent Asset ID</th>
+                    <th>Description</th>
+                    <th>Service Name</th>
+                    <th>Subservice</th>
+                    <th>Site Name</th>
+                    <th>Structure Name</th>
+                    <th>Level Name</th>
+                    <th>Space Name</th>
+                    <th>Location Description</th>
+                    <th>Make</th>
+                    <th>Model</th>
+                    <th>Serial Number</th>
+                    <th>Supplier</th>
+                    <th>Quantity</th>
+                    <th>Retail Price $</th>
+                    <th>Install Date</th>
+                    <th>Wty Expiry Date</th>
+                    <th>Life Expectancy (yrs)</th>
+                    <th>Reference Information</th>
+                    <th>Updated Date</th>
+                    <th>Updated User</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="equipmentRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel" data-panel="technical">
+            <div class="section-title">
+              <h2>Operations and Technical Data</h2>
+              <p>Operating requirements, design criteria, set points, capacities, and technical notes.</p>
+            </div>
+            <label class="wide">
+              Operating instructions
+              <textarea name="operatingInstructions" rows="6" placeholder="Describe normal operation, start-up, shut-down, seasonal operation, and controls."></textarea>
+            </label>
+            <label class="wide">
+              Technical data
+              <textarea name="technicalData" rows="7" placeholder="Capture capacities, set points, ratings, design conditions, fluid types, power requirements, and technical references."></textarea>
+            </label>
+          </section>
+
+          <section class="panel" data-panel="maintenance">
+            <div class="section-title with-action">
+              <div>
+                <h2>Maintenance Schedule</h2>
+                <p>Cross-reference assets with the matching asset description, frequency, unit, and routine details.</p>
+              </div>
+              <button class="secondary add-row" data-list="maintenance" type="button">Add Task</button>
+            </div>
+            <div class="table-editor">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Asset ID</th>
+                    <th>Frequency</th>
+                    <th>Unit</th>
+                    <th>Routine</th>
+                    <th>Details</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="maintenanceRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel" data-panel="commissioning">
+            <div class="section-title with-action">
+              <div>
+                <h2>Commissioning</h2>
+                <p>Commissioning records, test results, defects, dates, and sign-off details.</p>
+              </div>
+              <button class="secondary add-row" data-list="commissioning" type="button">Add Record</button>
+            </div>
+            <label>
+              Commissioning summary
+              <textarea name="commissioningSummary" rows="5" placeholder="Summarise commissioning method, status, open items, and handover readiness."></textarea>
+            </label>
+            <div class="table-editor spaced">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Asset / System</th>
+                    <th>Test / Activity</th>
+                    <th>Date</th>
+                    <th>Result</th>
+                    <th>Witness / Sign-off</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="commissioningRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel" data-panel="warranties">
+            <div class="section-title with-action">
+              <div>
+                <h2>Warranties</h2>
+                <p>Warranty providers, start dates, expiry dates, conditions, and claim contacts.</p>
+              </div>
+              <button class="secondary add-row" data-list="warranties" type="button">Add Warranty</button>
+            </div>
+            <div class="table-editor">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Asset ID</th>
+                    <th>Description</th>
+                    <th>Provider</th>
+                    <th>Start</th>
+                    <th>Expiry</th>
+                    <th>Conditions / Claim Details</th>
+                    <th>Attached Document</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="warrantiesRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel" data-panel="certificates">
+            <div class="section-title with-action">
+              <div>
+                <h2>Certificates</h2>
+                <p>Compliance, test, installation, calibration, and inspection certificates.</p>
+              </div>
+              <button class="secondary add-row" data-list="certificates" type="button">Add Certificate</button>
+            </div>
+            <div class="table-editor">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Certificate Type</th>
+                    <th>Reference</th>
+                    <th>Issued By</th>
+                    <th>Issue Date</th>
+                    <th>Notes</th>
+                    <th>Attached Document</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="certificatesRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel" data-panel="safety">
+            <div class="section-title">
+              <h2>Safety and Emergency</h2>
+              <p>Shutdown steps, hazards, permits, isolation points, and emergency actions.</p>
+            </div>
+            <label class="wide">
+              Safety requirements
+              <textarea name="safetyRequirements" rows="5" placeholder="List PPE, lockout requirements, permits, access limits, and known hazards."></textarea>
+            </label>
+            <label class="wide">
+              Emergency procedures
+              <textarea name="emergencyProcedures" rows="5" placeholder="Describe emergency shutdown, escalation, isolation, and recovery procedures."></textarea>
+            </label>
+          </section>
+
+          <section class="panel" data-panel="spares">
+            <div class="section-title">
+              <h2>Spare Parts</h2>
+              <p>Recommended parts, quantities, suppliers, and replacement notes.</p>
+            </div>
+            <label class="wide">
+              Recommended spare parts
+              <textarea name="spareParts" rows="8" placeholder="List part numbers, quantities, supplier, lead time, and replacement notes."></textarea>
+            </label>
+          </section>
+
+          <section class="panel" data-panel="asBuilts">
+            <div class="section-title with-action">
+              <div>
+                <h2>As Builts</h2>
+                <p>As-built drawings, models, markups, and final document references.</p>
+              </div>
+              <button class="secondary add-row" data-list="asBuilts" type="button">Add As Built</button>
+            </div>
+            <div class="table-editor">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Drawing / Model</th>
+                    <th>Revision</th>
+                    <th>Date</th>
+                    <th>Location / Reference</th>
+                    <th>Notes</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="asBuiltsRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel" data-panel="documents">
+            <div class="section-title with-action">
+              <div>
+                <h2>Documents</h2>
+                <p>Reference drawings, manuals, datasheets, schedules, reports, and appendices.</p>
+              </div>
+              <button class="secondary add-row" data-list="documents" type="button">Add Reference</button>
+            </div>
+            <div class="table-editor">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Title</th>
+                    <th>Reference / Location</th>
+                    <th>Notes</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="documentsRows"></tbody>
+              </table>
+            </div>
+          </section>
+        </form>
+      </section>
+
+      <aside class="preview-pane" aria-label="Manual preview">
+        <div class="preview-toolbar">
+          <h2>Preview</h2>
+          <span id="saveState">App loading...</span>
+        </div>
+        <article id="manualPreview" class="manual-preview"></article>
+      </aside>
+    </main>
+
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <script src="script.js?v=20260513-clean-trade-options"></script>
+  </body>
+</html>
