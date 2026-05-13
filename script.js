@@ -469,8 +469,8 @@ const listColumns = {
   ],
   maintenance: ["assetId", "unit", "frequency", "details"],
   commissioning: ["asset", "activity", "date", "result", "signoff"],
-  warranties: ["assetId", "provider", "start", "expiry", "conditions", "attachment"],
-  certificates: ["type", "reference", "issuedBy", "issueDate", "notes", "attachment"],
+  warranties: ["assetId", "provider", "start", "expiry", "conditions", "attachment", "documentUrl"],
+  certificates: ["type", "reference", "issuedBy", "issueDate", "notes", "attachment", "documentUrl"],
   asBuilts: ["drawing", "revision", "date", "location", "notes"],
   documents: ["type", "title", "reference", "notes"],
 };
@@ -555,6 +555,7 @@ const spreadsheetColumns = {
     ["expiry", "Expiry"],
     ["conditions", "Conditions / Claim Details"],
     ["attachment", "Attached Document"],
+    ["documentUrl", "Document URL"],
   ],
   certificates: [
     ["type", "Certificate Type"],
@@ -563,6 +564,7 @@ const spreadsheetColumns = {
     ["issueDate", "Issue Date"],
     ["notes", "Notes"],
     ["attachment", "Attached Document"],
+    ["documentUrl", "Document URL"],
   ],
   asBuilts: [
     ["drawing", "Drawing / Model"],
@@ -619,8 +621,8 @@ const editorColumnLabels = {
   ],
   maintenance: ["Asset ID", "Frequency", "Unit", "Routine", "Details"],
   commissioning: ["Asset / System", "Test / Activity", "Date", "Result", "Witness / Sign-off"],
-  warranties: ["Asset ID", "Provider", "Start", "Expiry", "Conditions / Claim Details", "Attached Document"],
-  certificates: ["Certificate Type", "Reference", "Issued By", "Issue Date", "Notes", "Attached Document"],
+  warranties: ["Asset ID", "Provider", "Start", "Expiry", "Conditions / Claim Details", "Attached Document", "Document URL"],
+  certificates: ["Certificate Type", "Reference", "Issued By", "Issue Date", "Notes", "Attached Document", "Document URL"],
   asBuilts: ["Drawing / Model", "Revision", "Date", "Location / Reference", "Notes"],
   documents: ["Type", "Title", "Reference / Location", "Notes"],
 };
@@ -2170,45 +2172,55 @@ function renderDashboard() {
   const overallPercent = completionFromSections(overallDashboardSections());
   const selectedLabel = folderDisplayName(ensureActiveFolder());
   target.innerHTML = `
-    <div class="dashboard-stats">
-      <div class="dashboard-stat completion-stat">
-        <div>
-          <span>Overall manual complete</span>
-          <small>All manual folders</small>
+    <div class="dashboard-summary-groups">
+      <section class="dashboard-summary-group">
+        <h3>Selected Folder</h3>
+        <div class="dashboard-stats">
+          <div class="dashboard-stat completion-stat">
+            <div>
+              <span>Selected folder complete</span>
+              <small>${escapeHtml(selectedLabel)}</small>
+            </div>
+            <div class="dashboard-donut large ${completionClass(selectedPercent)}" style="--percent: ${selectedPercent}">
+              <strong>${selectedPercent}%</strong>
+            </div>
+          </div>
+          <div class="dashboard-stat">
+            <span>Selected assets</span>
+            <strong>${totals.selected.assetCount}</strong>
+            <small>${escapeHtml(selectedLabel)}</small>
+          </div>
+          <div class="dashboard-stat">
+            <span>Selected asset value</span>
+            <strong>${currencyAu(totals.selected.totalValue)}</strong>
+            <small>${escapeHtml(selectedLabel)}</small>
+          </div>
         </div>
-        <div class="dashboard-donut large ${completionClass(overallPercent)}" style="--percent: ${overallPercent}">
-          <strong>${overallPercent}%</strong>
+      </section>
+      <section class="dashboard-summary-group">
+        <h3>Overall Manual</h3>
+        <div class="dashboard-stats">
+          <div class="dashboard-stat completion-stat">
+            <div>
+              <span>Overall manual complete</span>
+              <small>All manual folders</small>
+            </div>
+            <div class="dashboard-donut large ${completionClass(overallPercent)}" style="--percent: ${overallPercent}">
+              <strong>${overallPercent}%</strong>
+            </div>
+          </div>
+          <div class="dashboard-stat">
+            <span>Total assets</span>
+            <strong>${totals.overall.assetCount}</strong>
+            <small>All manual folders</small>
+          </div>
+          <div class="dashboard-stat">
+            <span>Total asset value</span>
+            <strong>${currencyAu(totals.overall.totalValue)}</strong>
+            <small>All manual folders</small>
+          </div>
         </div>
-      </div>
-      <div class="dashboard-stat completion-stat">
-        <div>
-          <span>Selected folder complete</span>
-          <small>${escapeHtml(selectedLabel)}</small>
-        </div>
-        <div class="dashboard-donut large ${completionClass(selectedPercent)}" style="--percent: ${selectedPercent}">
-          <strong>${selectedPercent}%</strong>
-        </div>
-      </div>
-      <div class="dashboard-stat">
-        <span>Total assets</span>
-        <strong>${totals.overall.assetCount}</strong>
-        <small>All manual folders</small>
-      </div>
-      <div class="dashboard-stat">
-        <span>Total asset value</span>
-        <strong>${currencyAu(totals.overall.totalValue)}</strong>
-        <small>All manual folders</small>
-      </div>
-      <div class="dashboard-stat">
-        <span>Selected assets</span>
-        <strong>${totals.selected.assetCount}</strong>
-        <small>${escapeHtml(selectedLabel)}</small>
-      </div>
-      <div class="dashboard-stat">
-        <span>Selected asset value</span>
-        <strong>${currencyAu(totals.selected.totalValue)}</strong>
-        <small>${escapeHtml(selectedLabel)}</small>
-      </div>
+      </section>
     </div>
     <div class="dashboard-grid">
       ${sections
@@ -2299,6 +2311,7 @@ function tableHtml(headers, rows, detail = {}) {
                             assetId: row[1] || "",
                             record: row[2] || "",
                             rowIndex,
+                            url: row[index + 1] || "",
                           })
                         : textOrDash(cell)
                     }</td>`,
@@ -2314,6 +2327,10 @@ function tableHtml(headers, rows, detail = {}) {
 }
 
 function attachmentButton(name, detail = {}) {
+  const url = detail.url || "";
+  if (url) {
+    return `<a class="attachment-link" href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(name || url)}</a>`;
+  }
   return `
     <button
       class="attachment-link"
@@ -2445,11 +2462,12 @@ function warrantiesHtml(manual, prefix = "asset") {
                       columnIndex === 5
                         ? attachmentButton(cell, {
                             section: "Warranties",
-                            listName: "warranties",
-                            rowIndex,
-                            assetId: row[0] || "",
-                            record: descriptions.get(row[0]) || "",
-                          })
+                          listName: "warranties",
+                          rowIndex,
+                          assetId: row[0] || "",
+                          record: descriptions.get(row[0]) || "",
+                          url: row[6] || "",
+                        })
                         : textOrDash(cell)
                     }</td>`;
                   })
@@ -2467,25 +2485,27 @@ function appendicesHtml(manual) {
   const descriptions = assetDescriptions(manual);
   const rows = [];
   manual.warranties.forEach((row, rowIndex) => {
-    if (!row[5]) return;
+    if (!row[5] && !row[6]) return;
     rows.push([
       "Warranties",
       row[0] || "",
       descriptions.get(row[0]) || "",
-      row[5],
+      row[5] || row[6],
       "warranties",
       rowIndex,
+      row[6] || "",
     ]);
   });
   manual.certificates.forEach((row, rowIndex) => {
-    if (!row[5]) return;
+    if (!row[5] && !row[6]) return;
     rows.push([
       "Certificates",
       "",
       [row[0], row[1]].filter(Boolean).join(" - "),
-      row[5],
+      row[5] || row[6],
       "certificates",
       rowIndex,
+      row[6] || "",
     ]);
   });
   if (!rows.length) return '<p class="empty-note">No records added.</p>';
@@ -2510,6 +2530,7 @@ function appendicesHtml(manual) {
                   record: row[2],
                   listName: row[4],
                   rowIndex: row[5],
+                  url: row[6],
                 })}</td>
               </tr>
             `,
