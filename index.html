@@ -4,9 +4,65 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>O&M Manual Builder</title>
-    <link rel="stylesheet" href="styles.css?v=20260514-document-url" />
+    <link rel="stylesheet" href="styles.css?v=20260514-login-projects" />
   </head>
-  <body>
+  <body class="login-locked">
+    <section class="login-screen" id="loginScreen" aria-label="Login and project selection">
+      <div class="login-card">
+        <div class="header-brand login-brand">
+          <div class="brand-logo" aria-hidden="true">
+            <svg viewBox="0 0 96 96" role="img">
+              <path class="logo-building" d="M52 16h28v64H52zM58 24h6v7h-6zM69 24h6v7h-6zM58 37h6v7h-6zM69 37h6v7h-6zM58 50h6v7h-6zM69 50h6v7h-6zM61 66h12v14H61z" />
+              <path class="logo-person" d="M28 21a9 9 0 1 1 0 18 9 9 0 0 1 0-18zM15 79l4-29c1-6 5-10 11-10h1c5 0 9 3 11 8l3 9 12 5-4 8-15-6-4-10-3 25z" />
+              <path class="logo-manual" d="M42 45l23 7-5 22-23-7zM47 53l12 4M45 60l12 4" />
+            </svg>
+          </div>
+          <div>
+            <p class="eyebrow">Operations and Maintenance</p>
+            <h1>Manual Builder</h1>
+          </div>
+        </div>
+        <div class="login-step" id="loginCredentialsStep">
+          <div class="section-title">
+            <h2 id="loginTitle">Login</h2>
+            <p id="loginIntro">Enter your local username and password.</p>
+          </div>
+          <label>
+            Username
+            <input id="loginUsername" autocomplete="username" />
+          </label>
+          <label>
+            Password
+            <input id="loginPassword" type="password" autocomplete="current-password" />
+          </label>
+          <label id="loginConfirmLabel" hidden>
+            Confirm password
+            <input id="loginConfirmPassword" type="password" autocomplete="new-password" />
+          </label>
+          <button id="loginSubmit" type="button">Login</button>
+          <p id="loginMessage" class="inline-status" aria-live="polite"></p>
+        </div>
+        <div class="login-step" id="loginProjectStep" hidden>
+          <div class="section-title">
+            <h2>Select Project</h2>
+            <p>Open a saved project, start a new one, or continue the current draft.</p>
+          </div>
+          <label>
+            Saved projects
+            <select id="loginProjectSelect"></select>
+          </label>
+          <label>
+            New project name
+            <input id="loginNewProjectName" placeholder="Example: Project XYZ" />
+          </label>
+          <div class="login-actions">
+            <button id="loginOpenProject" type="button">Open Project</button>
+            <button class="secondary" id="loginNewProject" type="button">New Project</button>
+            <button class="secondary" id="loginContinueDraft" type="button">Continue Draft</button>
+          </div>
+        </div>
+      </div>
+    </section>
     <header class="app-header">
       <div class="header-brand">
         <div class="brand-logo" aria-hidden="true">
@@ -25,6 +81,7 @@
         <button class="secondary" id="loadSample" type="button">Sample</button>
         <button class="secondary" id="clearDraft" type="button">Clear</button>
         <button class="secondary" id="togglePreview" type="button">Hide Preview</button>
+        <button class="secondary" id="logoutUser" type="button">Logout</button>
         <label class="toc-toggle">
           <input id="includeToc" type="checkbox" checked />
           Include linked TOC
@@ -54,33 +111,17 @@
 
         <section class="folder-picker" aria-label="Virtual folder selector">
           <label>
-            Tier 1 - Discipline
+            Discipline
             <select id="disciplineSelect"></select>
           </label>
           <label>
-            Tier 2 - Trade
+            Trade
             <select id="tradeSelect"></select>
           </label>
           <label>
-            Tier 3 - Sub-Trade
+            Sub-Trade
             <select id="subTradeSelect"></select>
           </label>
-        </section>
-
-        <section class="folder-edit" aria-label="Edit selected virtual folder path">
-          <label>
-            Edit Discipline
-            <input id="editDiscipline" placeholder="Discipline" />
-          </label>
-          <label>
-            Edit Trade
-            <input id="editTrade" placeholder="Trade" />
-          </label>
-          <label>
-            Edit Sub-Trade
-            <input id="editSubTrade" placeholder="Sub-Trade" />
-          </label>
-          <button class="secondary" id="updateFolderPath" type="button">Update Selected Path</button>
         </section>
 
         <form id="manualForm" autocomplete="off">
@@ -160,7 +201,7 @@
             </div>
             <div class="section-title folder-builder-title">
               <h2>Manual Folders Structure</h2>
-              <p>Add a Discipline, Trade, and Sub-Trade path. Pick a path above to edit the sections inside it.</p>
+              <p>Add a Discipline, Trade, and Sub-Trade path. Pick a path below to edit the selected folder.</p>
             </div>
             <div class="field-grid folder-builder">
               <label>
@@ -177,6 +218,35 @@
               </label>
               <button id="addFolderPath" type="button">Add Folder Path</button>
             </div>
+            <section class="folder-picker settings-folder-picker" aria-label="Settings manual folder selector">
+              <label>
+                Tier 1 - Discipline
+                <select id="settingsDisciplineSelect"></select>
+              </label>
+              <label>
+                Tier 2 - Trade
+                <select id="settingsTradeSelect"></select>
+              </label>
+              <label>
+                Tier 3 - Sub-Trade
+                <select id="settingsSubTradeSelect"></select>
+              </label>
+            </section>
+            <section class="folder-edit settings-folder-edit" aria-label="Edit selected manual folder path">
+              <label>
+                Edit Discipline
+                <input id="editDiscipline" placeholder="Discipline" />
+              </label>
+              <label>
+                Edit Trade
+                <input id="editTrade" placeholder="Trade" />
+              </label>
+              <label>
+                Edit Sub-Trade
+                <input id="editSubTrade" placeholder="Sub-Trade" />
+              </label>
+              <button class="secondary" id="updateFolderPath" type="button">Update Selected Path</button>
+            </section>
             <div class="section-title folder-builder-title">
               <h2>Service Classification Register</h2>
               <p>Manage industry-standard Service Name and Sub Service values used by the asset register.</p>
@@ -524,6 +594,6 @@
     </main>
 
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-    <script src="script.js?v=20260514-document-url"></script>
+    <script src="script.js?v=20260514-login-projects"></script>
   </body>
 </html>

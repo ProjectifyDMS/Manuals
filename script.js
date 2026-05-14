@@ -1,6 +1,8 @@
 const STORAGE_KEY = "om-manual-builder-draft-v2";
 const LEGACY_STORAGE_KEY = "om-manual-builder-draft-v1";
 const PROJECT_DATABASE_KEY = "om-manual-builder-project-database-v1";
+const LOGIN_PROFILE_KEY = "om-manual-builder-local-login-v1";
+const LOGIN_SESSION_KEY = "om-manual-builder-login-session-v1";
 const KEY_SEPARATOR = "||";
 let storageAvailable = true;
 let selectedSiteDetailPath = {
@@ -937,6 +939,107 @@ function saveCurrentProjectRecord(name = projectDatabaseName()) {
   }
 }
 
+function localPasswordHash(username, password) {
+  const text = `${String(username || "").trim().toLowerCase()}::${String(password || "")}`;
+  let hash = 2166136261;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `local-${(hash >>> 0).toString(16)}`;
+}
+
+function loadLoginProfile() {
+  if (!storageAvailable) return null;
+  try {
+    return JSON.parse(localStorage.getItem(LOGIN_PROFILE_KEY) || "null");
+  } catch {
+    return null;
+  }
+}
+
+function saveLoginProfile(username, password) {
+  if (!storageAvailable) return false;
+  try {
+    localStorage.setItem(
+      LOGIN_PROFILE_KEY,
+      JSON.stringify({
+        username: String(username || "").trim(),
+        passwordHash: localPasswordHash(username, password),
+      }),
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function setLoginMessage(message) {
+  const element = document.querySelector("#loginMessage");
+  if (element) element.textContent = message || "";
+}
+
+function populateLoginProjectSelect() {
+  const select = document.querySelector("#loginProjectSelect");
+  if (!select) return;
+  const names = Object.keys(loadProjectDatabase()).sort();
+  select.innerHTML = [
+    '<option value="">Select saved project...</option>',
+    ...names.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`),
+  ].join("");
+}
+
+function showLoginCredentialsStep() {
+  const profile = loadLoginProfile();
+  const isSetup = !profile;
+  document.querySelector("#loginCredentialsStep").hidden = false;
+  document.querySelector("#loginProjectStep").hidden = true;
+  document.querySelector("#loginTitle").textContent = isSetup ? "Create Login" : "Login";
+  document.querySelector("#loginIntro").textContent = isSetup
+    ? "Create a local username and password for this browser."
+    : "Enter your local username and password.";
+  document.querySelector("#loginSubmit").textContent = isSetup ? "Create Login" : "Login";
+  document.querySelector("#loginConfirmLabel").hidden = !isSetup;
+  ["#loginUsername", "#loginPassword", "#loginConfirmPassword"].forEach((selector) => {
+    const field = document.querySelector(selector);
+    if (field) field.value = "";
+  });
+  setLoginMessage("");
+}
+
+function showProjectSelectionStep() {
+  document.querySelector("#loginCredentialsStep").hidden = true;
+  document.querySelector("#loginProjectStep").hidden = false;
+  populateLoginProjectSelect();
+}
+
+function unlockApp() {
+  document.body.classList.remove("login-locked");
+}
+
+function startNewProjectFromLogin() {
+  const name = document.querySelector("#loginNewProjectName")?.value.trim() || "Untitled Project";
+  state = cloneData(defaults);
+  state.fields.projectName = name;
+  createFolder(state.selectedFolder);
+  renderFolderPicker();
+  renderEditors();
+  persistAndRender();
+  saveCurrentProjectRecord(name);
+  renderProjectDatabaseControls(name);
+  unlockApp();
+}
+
+function initialiseLoginGate() {
+  const profile = loadLoginProfile();
+  if (sessionStorage.getItem(LOGIN_SESSION_KEY) === "active" && profile) {
+    unlockApp();
+    return;
+  }
+  document.body.classList.add("login-locked");
+  showLoginCredentialsStep();
+}
+
 function loadProjectRecord(name) {
   const record = loadProjectDatabase()[name];
   if (!record) return;
@@ -1229,25 +1332,35 @@ function setOptions(select, values, selectedValue) {
 function renderFolderPicker() {
   ensureActiveFolder();
   const folders = folderList();
-  const disciplineSelect = document.querySelector("#disciplineSelect");
-  const tradeSelect = document.querySelector("#tradeSelect");
-  const subTradeSelect = document.querySelector("#subTradeSelect");
   const disciplines = uniqueValues(folders, "discipline");
-  setOptions(disciplineSelect, disciplines, state.selectedFolder.discipline);
+  const selected = cleanFolder(state.selectedFolder);
+  if (!disciplines.includes(selected.discipline)) selected.discipline = disciplines[0] || defaults.selectedFolder.discipline;
 
   const trades = uniqueFolderValues(
-    folders.filter((folder) => folder.discipline === disciplineSelect.value),
+    folders.filter((folder) => folder.discipline === selected.discipline),
     "trade",
   );
-  if (!trades.includes(state.selectedFolder.trade)) state.selectedFolder.trade = trades[0] || "";
-  setOptions(tradeSelect, trades, state.selectedFolder.trade);
+  if (!trades.includes(selected.trade)) selected.trade = trades[0] || "";
 
   const subTrades = uniqueFolderValues(
-    folders.filter((folder) => folder.discipline === disciplineSelect.value && folder.trade === tradeSelect.value),
+    folders.filter((folder) => folder.discipline === selected.discipline && folder.trade === selected.trade),
     "subTrade",
   );
-  if (!subTrades.includes(state.selectedFolder.subTrade)) state.selectedFolder.subTrade = subTrades[0] || "";
-  setOptions(subTradeSelect, subTrades, state.selectedFolder.subTrade);
+  if (!subTrades.includes(selected.subTrade)) selected.subTrade = subTrades[0] || "";
+  state.selectedFolder = selected;
+
+  [
+    ["#disciplineSelect", "#tradeSelect", "#subTradeSelect"],
+    ["#settingsDisciplineSelect", "#settingsTradeSelect", "#settingsSubTradeSelect"],
+  ].forEach(([disciplineSelector, tradeSelector, subTradeSelector]) => {
+    const disciplineSelect = document.querySelector(disciplineSelector);
+    const tradeSelect = document.querySelector(tradeSelector);
+    const subTradeSelect = document.querySelector(subTradeSelector);
+    if (!disciplineSelect || !tradeSelect || !subTradeSelect) return;
+    setOptions(disciplineSelect, disciplines, state.selectedFolder.discipline);
+    setOptions(tradeSelect, trades, state.selectedFolder.trade);
+    setOptions(subTradeSelect, subTrades, state.selectedFolder.subTrade);
+  });
   syncFolderEditFields();
 }
 
@@ -2984,32 +3097,42 @@ document.querySelectorAll(".add-row").forEach((button) => {
   });
 });
 
-document.querySelector("#disciplineSelect").addEventListener("change", (event) => {
-  const discipline = event.target.value;
-  const firstTrade = uniqueFolderValues(folderList().filter((folder) => folder.discipline === discipline), "trade")[0] || "";
-  const firstSubTrade = uniqueFolderValues(
-    folderList().filter((folder) => folder.discipline === discipline && folder.trade === firstTrade),
-    "subTrade",
-  )[0] || "";
-  selectExistingFolder({ discipline, trade: firstTrade, subTrade: firstSubTrade });
-});
+function wireFolderPickerControls(disciplineSelector, tradeSelector, subTradeSelector) {
+  const disciplineSelect = document.querySelector(disciplineSelector);
+  const tradeSelect = document.querySelector(tradeSelector);
+  const subTradeSelect = document.querySelector(subTradeSelector);
+  if (!disciplineSelect || !tradeSelect || !subTradeSelect) return;
 
-document.querySelector("#tradeSelect").addEventListener("change", (event) => {
-  const trade = event.target.value;
-  const firstSubTrade = uniqueFolderValues(
-    folderList().filter((folder) => folder.discipline === state.selectedFolder.discipline && folder.trade === trade),
-    "subTrade",
-  )[0] || "";
-  selectExistingFolder({ discipline: state.selectedFolder.discipline, trade, subTrade: firstSubTrade });
-});
-
-document.querySelector("#subTradeSelect").addEventListener("change", (event) => {
-  selectExistingFolder({
-    discipline: state.selectedFolder.discipline,
-    trade: state.selectedFolder.trade,
-    subTrade: event.target.value,
+  disciplineSelect.addEventListener("change", (event) => {
+    const discipline = event.target.value;
+    const firstTrade = uniqueFolderValues(folderList().filter((folder) => folder.discipline === discipline), "trade")[0] || "";
+    const firstSubTrade = uniqueFolderValues(
+      folderList().filter((folder) => folder.discipline === discipline && folder.trade === firstTrade),
+      "subTrade",
+    )[0] || "";
+    selectExistingFolder({ discipline, trade: firstTrade, subTrade: firstSubTrade });
   });
-});
+
+  tradeSelect.addEventListener("change", (event) => {
+    const trade = event.target.value;
+    const firstSubTrade = uniqueFolderValues(
+      folderList().filter((folder) => folder.discipline === state.selectedFolder.discipline && folder.trade === trade),
+      "subTrade",
+    )[0] || "";
+    selectExistingFolder({ discipline: state.selectedFolder.discipline, trade, subTrade: firstSubTrade });
+  });
+
+  subTradeSelect.addEventListener("change", (event) => {
+    selectExistingFolder({
+      discipline: state.selectedFolder.discipline,
+      trade: state.selectedFolder.trade,
+      subTrade: event.target.value,
+    });
+  });
+}
+
+wireFolderPickerControls("#disciplineSelect", "#tradeSelect", "#subTradeSelect");
+wireFolderPickerControls("#settingsDisciplineSelect", "#settingsTradeSelect", "#settingsSubTradeSelect");
 
 document.querySelector("#addFolderPath").addEventListener("click", () => {
   const folder = cleanFolder({
@@ -3135,6 +3258,62 @@ document.querySelector("#projectDatabaseSelect").addEventListener("change", (eve
   document.querySelector("#projectDatabaseName").value = event.target.value;
 });
 
+document.querySelector("#loginSubmit").addEventListener("click", () => {
+  const username = document.querySelector("#loginUsername").value.trim();
+  const password = document.querySelector("#loginPassword").value;
+  const confirmPassword = document.querySelector("#loginConfirmPassword").value;
+  const profile = loadLoginProfile();
+  if (!username || !password) {
+    setLoginMessage("Enter a username and password.");
+    return;
+  }
+  if (!profile) {
+    if (password !== confirmPassword) {
+      setLoginMessage("Passwords do not match.");
+      return;
+    }
+    if (!saveLoginProfile(username, password)) {
+      setLoginMessage("Login could not be saved in this browser.");
+      return;
+    }
+    sessionStorage.setItem(LOGIN_SESSION_KEY, "active");
+    showProjectSelectionStep();
+    return;
+  }
+  const matchesUsername = username.toLowerCase() === String(profile.username || "").toLowerCase();
+  const matchesPassword = localPasswordHash(username, password) === profile.passwordHash;
+  if (!matchesUsername || !matchesPassword) {
+    setLoginMessage("Username or password is incorrect.");
+    return;
+  }
+  sessionStorage.setItem(LOGIN_SESSION_KEY, "active");
+  showProjectSelectionStep();
+});
+
+document.querySelector("#loginOpenProject").addEventListener("click", () => {
+  const name = document.querySelector("#loginProjectSelect").value;
+  if (!name) {
+    alert("Select a saved project first.");
+    return;
+  }
+  loadProjectRecord(name);
+  unlockApp();
+});
+
+document.querySelector("#loginNewProject").addEventListener("click", () => {
+  startNewProjectFromLogin();
+});
+
+document.querySelector("#loginContinueDraft").addEventListener("click", () => {
+  unlockApp();
+});
+
+document.querySelector("#logoutUser").addEventListener("click", () => {
+  sessionStorage.removeItem(LOGIN_SESSION_KEY);
+  document.body.classList.add("login-locked");
+  showLoginCredentialsStep();
+});
+
 document.querySelector("#newProjectRecord").addEventListener("click", () => {
   if (!confirm("Start a new blank project? Save the current project first if you need to keep it.")) return;
   state = cloneData(defaults);
@@ -3238,6 +3417,7 @@ try {
   renderPreview();
   updatePreviewToggleButton();
   saveState();
+  initialiseLoginGate();
 } catch (error) {
   showAppError(error.message || "The app could not finish loading.");
 }

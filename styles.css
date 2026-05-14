@@ -25,6 +25,15 @@ body {
   overflow: hidden;
 }
 
+body.login-locked {
+  display: block;
+}
+
+body.login-locked .app-header,
+body.login-locked .app-shell {
+  display: none;
+}
+
 button,
 input,
 textarea {
@@ -101,6 +110,47 @@ button.secondary:hover {
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 3;
+}
+
+.login-screen {
+  align-items: center;
+  background: linear-gradient(135deg, #eef5f6 0%, #f8fafb 52%, #e9f1ee 100%);
+  display: none;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+body.login-locked .login-screen {
+  display: flex;
+}
+
+.login-card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 20px 50px rgba(31, 41, 51, 0.14);
+  display: grid;
+  gap: 22px;
+  margin: 0 auto;
+  max-width: 520px;
+  padding: 28px;
+  width: 100%;
+}
+
+.login-brand {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 20px;
+}
+
+.login-step {
+  display: grid;
+  gap: 14px;
+}
+
+.login-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .app-header h1,
@@ -197,6 +247,26 @@ button.secondary:hover {
   gap: 12px;
   grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
   padding: 0 20px 14px;
+}
+
+.settings-folder-edit {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 18px;
+  padding: 14px;
+}
+
+.settings-folder-picker {
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  margin-top: 12px;
+  padding: 14px;
+}
+
+.settings-folder-picker + .settings-folder-edit {
+  border-radius: 0 0 8px 8px;
+  margin-top: 0;
 }
 
 .folder-picker select,
