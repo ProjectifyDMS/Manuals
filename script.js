@@ -3,6 +3,9 @@ const LEGACY_STORAGE_KEY = "om-manual-builder-draft-v1";
 const PROJECT_DATABASE_KEY = "om-manual-builder-project-database-v1";
 const LOGIN_PROFILE_KEY = "om-manual-builder-local-login-v1";
 const LOGIN_SESSION_KEY = "om-manual-builder-login-session-v1";
+const SUPABASE_URL = "https://ixqastmhzqzseokrvsxd.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_IULuuPMBDRN4BmQ-zFscFw_5b7ftrDc";
+const SUPABASE_PROJECTS_TABLE = "om_projects";
 const KEY_SEPARATOR = "||";
 let storageAvailable = true;
 let selectedSiteDetailPath = {
@@ -631,6 +634,9 @@ const editorColumnLabels = {
 
 let state;
 const attachmentUrls = new Map();
+let supabaseClient = null;
+let currentSupabaseUser = null;
+let cloudProjectRecords = [];
 
 function cloneData(value) {
   if (typeof structuredClone === "function") return structuredClone(value);
@@ -909,14 +915,59 @@ function saveProjectDatabase(database) {
   }
 }
 
+function initialiseSupabaseClient() {
+  if (supabaseClient) return supabaseClient;
+  if (!window.supabase?.createClient || !SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) return null;
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+  return supabaseClient;
+}
+
+function cloudModeAvailable() {
+  return Boolean(initialiseSupabaseClient());
+}
+
+function cloudProjectOptionValue(record) {
+  return record?.id ? `cloud:${record.id}` : "";
+}
+
+async function refreshCloudProjectRecords() {
+  const client = initialiseSupabaseClient();
+  if (!client || !currentSupabaseUser) {
+    cloudProjectRecords = [];
+    return [];
+  }
+  const { data, error } = await client
+    .from(SUPABASE_PROJECTS_TABLE)
+    .select("id,name,data,updated_at")
+    .order("name", { ascending: true });
+  if (error) {
+    setLoginMessage("Supabase project table is not ready yet. Use the SQL setup in Codex, then refresh.");
+    cloudProjectRecords = [];
+    return [];
+  }
+  cloudProjectRecords = data || [];
+  return cloudProjectRecords;
+}
+
 function projectDatabaseName() {
   return document.querySelector("#projectDatabaseName")?.value.trim() || state.fields.projectName.trim() || "Untitled Project";
 }
 
-function renderProjectDatabaseControls(selectedName = "") {
+async function renderProjectDatabaseControls(selectedName = "") {
   const select = document.querySelector("#projectDatabaseSelect");
   const nameInput = document.querySelector("#projectDatabaseName");
   if (!select || !nameInput) return;
+  if (currentSupabaseUser && cloudModeAvailable()) {
+    const records = await refreshCloudProjectRecords();
+    select.innerHTML = [
+      '<option value="">Select saved project...</option>',
+      ...records.map((record) => `<option value="${escapeHtml(cloudProjectOptionValue(record))}">${escapeHtml(record.name)}</option>`),
+    ].join("");
+    const selectedRecord = records.find((record) => record.name === selectedName || cloudProjectOptionValue(record) === selectedName);
+    if (selectedRecord) select.value = cloudProjectOptionValue(selectedRecord);
+    nameInput.value = selectedRecord?.name || selectedName || nameInput.value || state.fields.projectName || "";
+    return;
+  }
   const database = loadProjectDatabase();
   const names = Object.keys(database).sort();
   select.innerHTML = [
@@ -927,7 +978,28 @@ function renderProjectDatabaseControls(selectedName = "") {
   nameInput.value = selectedName || nameInput.value || state.fields.projectName || "";
 }
 
-function saveCurrentProjectRecord(name = projectDatabaseName()) {
+async function saveCurrentProjectRecord(name = projectDatabaseName()) {
+  if (currentSupabaseUser && cloudModeAvailable()) {
+    const client = initialiseSupabaseClient();
+    const existing = cloudProjectRecords.find((record) => record.name === name);
+    const payload = {
+      name,
+      data: cloneData(state),
+      user_id: currentSupabaseUser.id,
+      updated_at: new Date().toISOString(),
+    };
+    const request = existing
+      ? client.from(SUPABASE_PROJECTS_TABLE).update(payload).eq("id", existing.id).select("id,name,data,updated_at").single()
+      : client.from(SUPABASE_PROJECTS_TABLE).insert(payload).select("id,name,data,updated_at").single();
+    const { error } = await request;
+    if (error) {
+      alert(`Supabase could not save this project yet: ${error.message}`);
+      return;
+    }
+    await renderProjectDatabaseControls(name);
+    saveState();
+    return;
+  }
   const database = loadProjectDatabase();
   database[name] = {
     savedAt: new Date().toISOString(),
@@ -979,9 +1051,17 @@ function setLoginMessage(message) {
   if (element) element.textContent = message || "";
 }
 
-function populateLoginProjectSelect() {
+async function populateLoginProjectSelect() {
   const select = document.querySelector("#loginProjectSelect");
   if (!select) return;
+  if (currentSupabaseUser && cloudModeAvailable()) {
+    const records = await refreshCloudProjectRecords();
+    select.innerHTML = [
+      '<option value="">Select saved project...</option>',
+      ...records.map((record) => `<option value="${escapeHtml(cloudProjectOptionValue(record))}">${escapeHtml(record.name)}</option>`),
+    ].join("");
+    return;
+  }
   const names = Object.keys(loadProjectDatabase()).sort();
   select.innerHTML = [
     '<option value="">Select saved project...</option>',
@@ -990,15 +1070,18 @@ function populateLoginProjectSelect() {
 }
 
 function showLoginCredentialsStep() {
+  const isCloud = cloudModeAvailable();
   const profile = loadLoginProfile();
-  const isSetup = !profile;
+  const isSetup = !isCloud && !profile;
   document.querySelector("#loginCredentialsStep").hidden = false;
   document.querySelector("#loginProjectStep").hidden = true;
-  document.querySelector("#loginTitle").textContent = isSetup ? "Create Login" : "Login";
-  document.querySelector("#loginIntro").textContent = isSetup
+  document.querySelector("#loginTitle").textContent = isCloud ? "Supabase Login" : isSetup ? "Create Login" : "Login";
+  document.querySelector("#loginIntro").textContent = isCloud
+    ? "Enter your Supabase email and password."
+    : isSetup
     ? "Create a local username and password for this browser."
     : "Enter your local username and password.";
-  document.querySelector("#loginSubmit").textContent = isSetup ? "Create Login" : "Login";
+  document.querySelector("#loginSubmit").textContent = isCloud ? "Continue" : isSetup ? "Create Login" : "Login";
   document.querySelector("#loginConfirmLabel").hidden = !isSetup;
   ["#loginUsername", "#loginPassword", "#loginConfirmPassword"].forEach((selector) => {
     const field = document.querySelector(selector);
@@ -1007,17 +1090,17 @@ function showLoginCredentialsStep() {
   setLoginMessage("");
 }
 
-function showProjectSelectionStep() {
+async function showProjectSelectionStep() {
   document.querySelector("#loginCredentialsStep").hidden = true;
   document.querySelector("#loginProjectStep").hidden = false;
-  populateLoginProjectSelect();
+  await populateLoginProjectSelect();
 }
 
 function unlockApp() {
   document.body.classList.remove("login-locked");
 }
 
-function startNewProjectFromLogin() {
+async function startNewProjectFromLogin() {
   const name = document.querySelector("#loginNewProjectName")?.value.trim() || "Untitled Project";
   state = cloneData(defaults);
   state.fields.projectName = name;
@@ -1025,14 +1108,26 @@ function startNewProjectFromLogin() {
   renderFolderPicker();
   renderEditors();
   persistAndRender();
-  saveCurrentProjectRecord(name);
-  renderProjectDatabaseControls(name);
+  await saveCurrentProjectRecord(name);
+  await renderProjectDatabaseControls(name);
   unlockApp();
 }
 
-function initialiseLoginGate() {
+async function initialiseLoginGate() {
+  const client = initialiseSupabaseClient();
+  if (client) {
+    const { data } = await client.auth.getSession();
+    currentSupabaseUser = data.session?.user || null;
+    if (currentSupabaseUser) {
+      sessionStorage.setItem(LOGIN_SESSION_KEY, "active");
+      document.body.classList.add("login-locked");
+      await showProjectSelectionStep();
+      await renderProjectDatabaseControls("");
+      return;
+    }
+  }
   const profile = loadLoginProfile();
-  if (sessionStorage.getItem(LOGIN_SESSION_KEY) === "active" && profile) {
+  if (!client && sessionStorage.getItem(LOGIN_SESSION_KEY) === "active" && profile) {
     unlockApp();
     return;
   }
@@ -1040,19 +1135,26 @@ function initialiseLoginGate() {
   showLoginCredentialsStep();
 }
 
-function loadProjectRecord(name) {
-  const record = loadProjectDatabase()[name];
+async function loadProjectRecord(name) {
+  let record = null;
+  if (currentSupabaseUser && cloudModeAvailable()) {
+    const id = String(name || "").startsWith("cloud:") ? String(name).slice(6) : "";
+    record = cloudProjectRecords.find((item) => item.id === id || item.name === name);
+  } else {
+    record = loadProjectDatabase()[name];
+  }
   if (!record) return;
+  const recordData = record.data || {};
   state = {
     ...cloneData(defaults),
-    ...cloneData(record.data),
-    fields: Object.fromEntries(projectFieldNames.map((field) => [field, record.data.fields?.[field] || ""])),
-    siteDetails: (record.data.siteDetails || []).map(normalizeSiteDetailRow),
+    ...cloneData(recordData),
+    fields: Object.fromEntries(projectFieldNames.map((field) => [field, recordData.fields?.[field] || ""])),
+    siteDetails: (recordData.siteDetails || []).map(normalizeSiteDetailRow),
   };
   renderFolderPicker();
   renderEditors();
   persistAndRender();
-  renderProjectDatabaseControls(name);
+  await renderProjectDatabaseControls(record.name || name);
 }
 
 function markSaving() {
@@ -3258,10 +3360,35 @@ document.querySelector("#projectDatabaseSelect").addEventListener("change", (eve
   document.querySelector("#projectDatabaseName").value = event.target.value;
 });
 
-document.querySelector("#loginSubmit").addEventListener("click", () => {
+document.querySelector("#loginSubmit").addEventListener("click", async () => {
   const username = document.querySelector("#loginUsername").value.trim();
   const password = document.querySelector("#loginPassword").value;
   const confirmPassword = document.querySelector("#loginConfirmPassword").value;
+  const client = initialiseSupabaseClient();
+  if (client) {
+    if (!username || !password) {
+      setLoginMessage("Enter your email and password.");
+      return;
+    }
+    setLoginMessage("Checking Supabase login...");
+    let { data, error } = await client.auth.signInWithPassword({ email: username, password });
+    if (error) {
+      ({ data, error } = await client.auth.signUp({ email: username, password }));
+      if (error) {
+        setLoginMessage(error.message || "Supabase login failed.");
+        return;
+      }
+      if (!data.session) {
+        setLoginMessage("Account created. Check your email to confirm it, then log in again.");
+        return;
+      }
+    }
+    currentSupabaseUser = data.user || data.session?.user || null;
+    sessionStorage.setItem(LOGIN_SESSION_KEY, "active");
+    setLoginMessage("");
+    await showProjectSelectionStep();
+    return;
+  }
   const profile = loadLoginProfile();
   if (!username || !password) {
     setLoginMessage("Enter a username and password.");
@@ -3277,7 +3404,7 @@ document.querySelector("#loginSubmit").addEventListener("click", () => {
       return;
     }
     sessionStorage.setItem(LOGIN_SESSION_KEY, "active");
-    showProjectSelectionStep();
+    await showProjectSelectionStep();
     return;
   }
   const matchesUsername = username.toLowerCase() === String(profile.username || "").toLowerCase();
@@ -3287,28 +3414,30 @@ document.querySelector("#loginSubmit").addEventListener("click", () => {
     return;
   }
   sessionStorage.setItem(LOGIN_SESSION_KEY, "active");
-  showProjectSelectionStep();
+  await showProjectSelectionStep();
 });
 
-document.querySelector("#loginOpenProject").addEventListener("click", () => {
+document.querySelector("#loginOpenProject").addEventListener("click", async () => {
   const name = document.querySelector("#loginProjectSelect").value;
   if (!name) {
     alert("Select a saved project first.");
     return;
   }
-  loadProjectRecord(name);
+  await loadProjectRecord(name);
   unlockApp();
 });
 
-document.querySelector("#loginNewProject").addEventListener("click", () => {
-  startNewProjectFromLogin();
+document.querySelector("#loginNewProject").addEventListener("click", async () => {
+  await startNewProjectFromLogin();
 });
 
 document.querySelector("#loginContinueDraft").addEventListener("click", () => {
   unlockApp();
 });
 
-document.querySelector("#logoutUser").addEventListener("click", () => {
+document.querySelector("#logoutUser").addEventListener("click", async () => {
+  if (currentSupabaseUser && cloudModeAvailable()) await initialiseSupabaseClient().auth.signOut();
+  currentSupabaseUser = null;
   sessionStorage.removeItem(LOGIN_SESSION_KEY);
   document.body.classList.add("login-locked");
   showLoginCredentialsStep();
@@ -3324,28 +3453,38 @@ document.querySelector("#newProjectRecord").addEventListener("click", () => {
   renderProjectDatabaseControls("");
 });
 
-document.querySelector("#saveProjectRecord").addEventListener("click", () => {
-  saveCurrentProjectRecord();
+document.querySelector("#saveProjectRecord").addEventListener("click", async () => {
+  await saveCurrentProjectRecord();
 });
 
-document.querySelector("#openProjectRecord").addEventListener("click", () => {
+document.querySelector("#openProjectRecord").addEventListener("click", async () => {
   const name = document.querySelector("#projectDatabaseSelect").value || document.querySelector("#projectDatabaseName").value.trim();
   if (!name) return alert("Select a saved project first.");
   if (!confirm("Open this project? Unsaved changes in the current draft will be replaced.")) return;
-  loadProjectRecord(name);
+  await loadProjectRecord(name);
 });
 
-document.querySelector("#duplicateProjectRecord").addEventListener("click", () => {
+document.querySelector("#duplicateProjectRecord").addEventListener("click", async () => {
   const baseName = projectDatabaseName();
   const copyName = `${baseName} Copy`;
   document.querySelector("#projectDatabaseName").value = copyName;
-  saveCurrentProjectRecord(copyName);
+  await saveCurrentProjectRecord(copyName);
 });
 
-document.querySelector("#deleteProjectRecord").addEventListener("click", () => {
+document.querySelector("#deleteProjectRecord").addEventListener("click", async () => {
   const name = document.querySelector("#projectDatabaseSelect").value || document.querySelector("#projectDatabaseName").value.trim();
   if (!name) return alert("Select a saved project first.");
   if (!confirm(`Delete saved project "${name}"? This cannot be undone.`)) return;
+  if (currentSupabaseUser && cloudModeAvailable()) {
+    const id = String(name).startsWith("cloud:")
+      ? String(name).slice(6)
+      : cloudProjectRecords.find((record) => record.name === name)?.id || "";
+    if (!id) return alert("Select a saved Supabase project first.");
+    const { error } = await initialiseSupabaseClient().from(SUPABASE_PROJECTS_TABLE).delete().eq("id", id);
+    if (error) return alert(`Supabase could not delete this project: ${error.message}`);
+    await renderProjectDatabaseControls("");
+    return;
+  }
   const database = loadProjectDatabase();
   delete database[name];
   if (saveProjectDatabase(database)) renderProjectDatabaseControls("");
