@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>O&M Manual Builder</title>
-    <link rel="stylesheet" href="styles.css?v=20260514-supabase-attachments" />
+    <link rel="stylesheet" href="styles.css?v=20260515-warranty-style-attachments" />
   </head>
   <body class="login-locked">
     <section class="login-screen" id="loginScreen" aria-label="Login and project selection">
@@ -396,6 +396,7 @@
               Technical data
               <textarea name="technicalData" rows="7" placeholder="Capture capacities, set points, ratings, design conditions, fluid types, power requirements, and technical references."></textarea>
             </label>
+            <div class="section-attachments" data-section-attachments="technical"></div>
           </section>
 
           <section class="panel" data-panel="maintenance">
@@ -414,7 +415,7 @@
                     <th>Frequency</th>
                     <th>Unit</th>
                     <th>Routine</th>
-                    <th>Details</th>
+                    <th>Attached Documents</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -444,6 +445,7 @@
                     <th>Date</th>
                     <th>Result</th>
                     <th>Witness / Sign-off</th>
+                    <th>Attached Documents</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -470,8 +472,7 @@
                     <th>Start</th>
                     <th>Expiry</th>
                     <th>Conditions / Claim Details</th>
-                    <th>Attached Document</th>
-                    <th>Document URL</th>
+                    <th>Attached Documents</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -497,8 +498,7 @@
                     <th>Issued By</th>
                     <th>Issue Date</th>
                     <th>Notes</th>
-                    <th>Attached Document</th>
-                    <th>Document URL</th>
+                    <th>Attached Documents</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -520,6 +520,7 @@
               Emergency procedures
               <textarea name="emergencyProcedures" rows="5" placeholder="Describe emergency shutdown, escalation, isolation, and recovery procedures."></textarea>
             </label>
+            <div class="section-attachments" data-section-attachments="safety"></div>
           </section>
 
           <section class="panel" data-panel="spares">
@@ -531,6 +532,7 @@
               Recommended spare parts
               <textarea name="spareParts" rows="8" placeholder="List part numbers, quantities, supplier, lead time, and replacement notes."></textarea>
             </label>
+            <div class="section-attachments" data-section-attachments="spares"></div>
           </section>
 
           <section class="panel" data-panel="asBuilts">
@@ -550,6 +552,7 @@
                     <th>Date</th>
                     <th>Location / Reference</th>
                     <th>Notes</th>
+                    <th>Attached Documents</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -574,6 +577,7 @@
                     <th>Title</th>
                     <th>Reference / Location</th>
                     <th>Notes</th>
+                    <th>Attached Documents</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -595,6 +599,6 @@
 
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=20260514-supabase-attachments"></script>
+    <script src="script.js?v=20260515-warranty-style-attachments"></script>
   </body>
 </html>

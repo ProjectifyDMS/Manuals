@@ -93,6 +93,11 @@ const sectionDefaults = {
   certificates: [],
   asBuilts: [],
   documents: [],
+  attachments: {
+    technical: [],
+    spares: [],
+    safety: [],
+  },
 };
 
 const defaults = {
@@ -472,12 +477,12 @@ const listColumns = {
     "updatedDate",
     "updatedUser",
   ],
-  maintenance: ["assetId", "unit", "frequency", "details"],
-  commissioning: ["asset", "activity", "date", "result", "signoff"],
+  maintenance: ["assetId", "unit", "frequency", "details", "attachment", "documentUrl"],
+  commissioning: ["asset", "activity", "date", "result", "signoff", "attachment", "documentUrl"],
   warranties: ["assetId", "provider", "start", "expiry", "conditions", "attachment", "documentUrl"],
   certificates: ["type", "reference", "issuedBy", "issueDate", "notes", "attachment", "documentUrl"],
-  asBuilts: ["drawing", "revision", "date", "location", "notes"],
-  documents: ["type", "title", "reference", "notes"],
+  asBuilts: ["drawing", "revision", "date", "location", "notes", "attachment", "documentUrl"],
+  documents: ["type", "title", "reference", "notes", "attachment", "documentUrl"],
 };
 
 const spreadsheetColumns = {
@@ -542,9 +547,11 @@ const spreadsheetColumns = {
   ],
   maintenance: [
     ["assetId", "Asset ID"],
-    ["unit", "Unit"],
-    ["frequency", "Frequency"],
-    ["details", "Details"],
+    ["unit", "Frequency"],
+    ["frequency", "Unit"],
+    ["details", "Routine"],
+    ["attachment", "Attached Documents"],
+    ["documentUrl", "Document URL"],
   ],
   commissioning: [
     ["asset", "Asset / System"],
@@ -552,6 +559,8 @@ const spreadsheetColumns = {
     ["date", "Date"],
     ["result", "Result"],
     ["signoff", "Witness / Sign-off"],
+    ["attachment", "Attached Documents"],
+    ["documentUrl", "Document URL"],
   ],
   warranties: [
     ["assetId", "Asset ID"],
@@ -559,7 +568,7 @@ const spreadsheetColumns = {
     ["start", "Start"],
     ["expiry", "Expiry"],
     ["conditions", "Conditions / Claim Details"],
-    ["attachment", "Attached Document"],
+    ["attachment", "Attached Documents"],
     ["documentUrl", "Document URL"],
   ],
   certificates: [
@@ -568,7 +577,7 @@ const spreadsheetColumns = {
     ["issuedBy", "Issued By"],
     ["issueDate", "Issue Date"],
     ["notes", "Notes"],
-    ["attachment", "Attached Document"],
+    ["attachment", "Attached Documents"],
     ["documentUrl", "Document URL"],
   ],
   asBuilts: [
@@ -577,12 +586,16 @@ const spreadsheetColumns = {
     ["date", "Date"],
     ["location", "Location / Reference"],
     ["notes", "Notes"],
+    ["attachment", "Attached Documents"],
+    ["documentUrl", "Document URL"],
   ],
   documents: [
     ["type", "Type"],
     ["title", "Title"],
     ["reference", "Reference / Location"],
     ["notes", "Notes"],
+    ["attachment", "Attached Documents"],
+    ["documentUrl", "Document URL"],
   ],
 };
 
@@ -624,12 +637,12 @@ const editorColumnLabels = {
     "Updated Date",
     "Updated User",
   ],
-  maintenance: ["Asset ID", "Frequency", "Unit", "Routine", "Details"],
-  commissioning: ["Asset / System", "Test / Activity", "Date", "Result", "Witness / Sign-off"],
-  warranties: ["Asset ID", "Provider", "Start", "Expiry", "Conditions / Claim Details", "Attached Document", "Document URL"],
-  certificates: ["Certificate Type", "Reference", "Issued By", "Issue Date", "Notes", "Attached Document", "Document URL"],
-  asBuilts: ["Drawing / Model", "Revision", "Date", "Location / Reference", "Notes"],
-  documents: ["Type", "Title", "Reference / Location", "Notes"],
+  maintenance: ["Asset ID", "Frequency", "Unit", "Routine", "Attached Documents", "Document URL"],
+  commissioning: ["Asset / System", "Test / Activity", "Date", "Result", "Witness / Sign-off", "Attached Documents", "Document URL"],
+  warranties: ["Asset ID", "Provider", "Start", "Expiry", "Conditions / Claim Details", "Attached Documents", "Document URL"],
+  certificates: ["Certificate Type", "Reference", "Issued By", "Issue Date", "Notes", "Attached Documents", "Document URL"],
+  asBuilts: ["Drawing / Model", "Revision", "Date", "Location / Reference", "Notes", "Attached Documents", "Document URL"],
+  documents: ["Type", "Title", "Reference / Location", "Notes", "Attached Documents", "Document URL"],
 };
 
 let state;
@@ -689,6 +702,7 @@ function normalizeAssetRow(row = []) {
 }
 
 function normalizeMaintenanceRow(row = []) {
+  const pad = (values) => listColumns.maintenance.map((_, index) => values[index] || "");
   const normalisePeriod = (unit, frequency) => {
     const unitText = String(unit || "").trim();
     const frequencyText = String(frequency || "").trim();
@@ -706,31 +720,32 @@ function normalizeMaintenanceRow(row = []) {
     };
     return commonPeriods[unitText.toLowerCase()] || [unitText, frequencyText];
   };
+  if (row.length === listColumns.maintenance.length) return pad(row);
   if (row.length === 4) {
     const [assetId, unit, frequency, details] = row;
     const [normalisedUnit, normalisedFrequency] = normalisePeriod(unit, frequency);
-    return [assetId || "", normalisedUnit, normalisedFrequency, details || ""];
+    return pad([assetId || "", normalisedUnit, normalisedFrequency, details || ""]);
   }
   if (row.length <= 5) {
     if (row.length === 5 && unitOptions.some((option) => option.toLowerCase() === String(row[3] || "").trim().toLowerCase())) {
-      return [row[0] || "", row[2] || "", row[3] || "", row[4] || ""];
+      return pad([row[0] || "", row[2] || "", row[3] || "", row[4] || ""]);
     }
     const [assetId, task, interval, responsible, notes] = row;
     const [unit, frequency] = normalisePeriod("", interval);
-    return [
+    return pad([
       assetId || "",
       unit,
       frequency,
       [task, responsible, notes].filter(Boolean).join(" - "),
-    ];
+    ]);
   }
   if (row.length === 6) {
     const [assetId, asset, scheduleName, frequency, unit, details] = row;
     const [normalisedUnit, normalisedFrequency] = normalisePeriod(unit, frequency);
-    return [assetId || "", normalisedUnit, normalisedFrequency, details || scheduleName || asset || ""];
+    return pad([assetId || "", normalisedUnit, normalisedFrequency, details || scheduleName || asset || ""]);
   }
   const [unit, frequency] = normalisePeriod(row[2], row[3]);
-  return [row[0] || "", unit, frequency, row[4] || ""];
+  return pad([row[0] || "", unit, frequency, row[4] || "", row[5] || "", row[6] || ""]);
 }
 
 function normalizeFixedRow(row = [], listName) {
@@ -775,8 +790,18 @@ function mergeSectionData(data = {}) {
   merged.contacts = (merged.contacts || []).map(normalizeContactRow);
   merged.equipment = (merged.equipment || []).map(normalizeAssetRow);
   merged.maintenance = (merged.maintenance || []).map(normalizeMaintenanceRow);
+  merged.commissioning = (merged.commissioning || []).map((row) => normalizeFixedRow(row, "commissioning"));
   merged.warranties = (merged.warranties || []).map((row) => normalizeFixedRow(row, "warranties"));
   merged.certificates = (merged.certificates || []).map((row) => normalizeFixedRow(row, "certificates"));
+  merged.asBuilts = (merged.asBuilts || []).map((row) => normalizeFixedRow(row, "asBuilts"));
+  merged.documents = (merged.documents || []).map((row) => normalizeFixedRow(row, "documents"));
+  merged.attachments = {
+    ...cloneData(sectionDefaults.attachments),
+    ...(data.attachments || {}),
+  };
+  Object.keys(merged.attachments).forEach((key) => {
+    merged.attachments[key] = (merged.attachments[key] || []).map((row) => [row[0] || "", row[1] || ""]);
+  });
   return merged;
 }
 
@@ -1527,6 +1552,25 @@ function getAttachmentUrl(listName, rowIndex, name) {
   return attachmentUrls.get(attachmentKey(listName, rowIndex, firstName));
 }
 
+function splitAttachmentList(value) {
+  return String(value || "").split(",").map((part) => part.trim()).filter(Boolean);
+}
+
+function attachmentUrlForRow(listName, row, rowIndex, attachmentName) {
+  const documentUrlIndex = listColumns[listName]?.indexOf("documentUrl") ?? -1;
+  const urls = documentUrlIndex >= 0 ? splitAttachmentList(row[documentUrlIndex]) : [];
+  const names = splitAttachmentList(row[listColumns[listName]?.indexOf("attachment") ?? -1]);
+  const nameIndex = names.findIndex((name) => name === attachmentName);
+  return urls[nameIndex >= 0 ? nameIndex : 0] || getAttachmentUrl(listName, rowIndex, attachmentName || names[0] || "");
+}
+
+function sectionAttachmentUrl(sectionKey, rowIndex, row, attachmentName) {
+  const urls = splitAttachmentList(row?.[1]);
+  const names = splitAttachmentList(row?.[0]);
+  const nameIndex = names.findIndex((name) => name === attachmentName);
+  return urls[nameIndex >= 0 ? nameIndex : 0] || attachmentUrls.get(attachmentKey(sectionKey, rowIndex, attachmentName || names[0] || "")) || "";
+}
+
 function safeStorageFileName(name) {
   const text = String(name || "attachment").trim();
   const parts = text.split(".");
@@ -1537,8 +1581,15 @@ function safeStorageFileName(name) {
 
 function attachmentFolderName(listName) {
   return {
+    maintenance: "maintenance",
+    technical: "technical-data",
     warranties: "warranties",
     certificates: "certificates",
+    commissioning: "commissioning",
+    spares: "spare-parts",
+    asBuilts: "as-builts",
+    documents: "documents",
+    safety: "safety",
   }[listName] || "other";
 }
 
@@ -1626,6 +1677,7 @@ function createTableRows(listName, rows) {
     const tr = document.createElement("tr");
     if (listName === "maintenance" || listName === "warranties") tr.dataset.linkedAssetRow = String(rowIndex);
     listColumns[listName].forEach((column, columnIndex) => {
+      if (column === "documentUrl") return;
       const td = document.createElement("td");
       td.dataset.label = editorLabel(listName, columnIndex);
       if (listName === "equipment" && column === "description") td.className = "wide-description-cell";
@@ -1634,68 +1686,102 @@ function createTableRows(listName, rows) {
         td.classList.add("editor-wide-field");
       }
       if (column === "attachment") {
-        const attachmentText = document.createElement("input");
-        const attachmentOpen = document.createElement("button");
+        const attachmentList = document.createElement("div");
+        const attachmentChoose = document.createElement("button");
         const attachmentStatus = document.createElement("span");
-        attachmentOpen.className = "secondary attachment-open";
-        attachmentOpen.type = "button";
+        attachmentList.className = "attachment-file-list";
+        attachmentChoose.className = "secondary attachment-choose";
+        attachmentChoose.type = "button";
+        attachmentChoose.textContent = "Choose Attached Documents";
         attachmentStatus.className = "attachment-status";
-        const syncAttachmentOpenLink = () => {
-          const url = getAttachmentUrl(listName, rowIndex, attachmentText.value);
-          attachmentOpen.textContent = url ? "Open selected file" : "Choose file to open";
-          attachmentOpen.toggleAttribute("hidden", !url);
-          attachmentOpen.disabled = !url;
+        const documentUrlIndex = listColumns[listName].indexOf("documentUrl");
+        const updateAttachmentValues = (names, urls) => {
+          targetData[rowIndex][columnIndex] = names.join(", ");
+          if (documentUrlIndex >= 0) targetData[rowIndex][documentUrlIndex] = urls.join(", ");
         };
-        attachmentOpen.addEventListener("click", () => {
-          const url = getAttachmentUrl(listName, rowIndex, attachmentText.value);
-          if (url) {
-            openAttachmentUrl(url);
-            return;
-          }
-          alert("Choose the file again first, then click Open selected file.");
-        });
-        attachmentText.placeholder = "No document selected";
-        attachmentText.value = row[columnIndex] || "";
-        attachmentText.addEventListener("input", () => {
-          targetData[rowIndex][columnIndex] = attachmentText.value;
-          syncAttachmentOpenLink();
-          persistAndRender();
-        });
+        const renderAttachmentList = () => {
+          const names = splitAttachmentList(targetData[rowIndex][columnIndex]);
+          const urls = documentUrlIndex >= 0 ? splitAttachmentList(targetData[rowIndex][documentUrlIndex]) : [];
+          attachmentList.innerHTML = names.length
+            ? `<ul class="attachment-name-list">${names
+                .map(
+                  (name, fileIndex) => `
+                    <li class="attachment-file-item">
+                      <span>${escapeHtml(name)}</span>
+                      <div class="attachment-file-actions">
+                        <button class="secondary attachment-open-file" data-file-index="${fileIndex}" type="button">Open</button>
+                        <button class="secondary attachment-remove-file" data-file-index="${fileIndex}" type="button">Remove</button>
+                      </div>
+                    </li>
+                  `,
+                )
+                .join("")}</ul>`
+            : '<p class="empty-note">No files attached.</p>';
+          attachmentList.querySelectorAll(".attachment-open-file").forEach((button) => {
+            button.addEventListener("click", () => {
+              const fileIndex = Number(button.dataset.fileIndex);
+              const url = urls[fileIndex] || attachmentUrls.get(attachmentKey(listName, rowIndex, names[fileIndex])) || "";
+              if (url) openAttachmentUrl(url);
+              else alert("This file needs to be selected again before it can be opened.");
+            });
+          });
+          attachmentList.querySelectorAll(".attachment-remove-file").forEach((button) => {
+            button.addEventListener("click", () => {
+              const fileIndex = Number(button.dataset.fileIndex);
+              names.splice(fileIndex, 1);
+              urls.splice(fileIndex, 1);
+              updateAttachmentValues(names, urls);
+              renderAttachmentList();
+              persistAndRender();
+            });
+          });
+        };
         const fileInput = document.createElement("input");
         fileInput.className = "file-picker";
         fileInput.type = "file";
+        fileInput.multiple = true;
+        fileInput.hidden = true;
+        attachmentChoose.addEventListener("click", () => {
+          fileInput.click();
+        });
         fileInput.addEventListener("change", async () => {
           const files = [...fileInput.files];
-          const names = files.map((file) => file.name).join(", ");
+          if (!files.length) return;
+          const existingNames = splitAttachmentList(targetData[rowIndex][columnIndex]);
+          const existingUrls = documentUrlIndex < 0 ? [] : splitAttachmentList(targetData[rowIndex][documentUrlIndex]);
+          const nextNames = [...existingNames, ...files.map((file) => file.name)];
+          const nextUrls = [...existingUrls];
           for (const file of files) {
             const key = attachmentKey(listName, rowIndex, file.name);
             const previousUrl = attachmentUrls.get(key);
             if (previousUrl) URL.revokeObjectURL(previousUrl);
             attachmentUrls.set(key, URL.createObjectURL(file));
           }
-          attachmentText.value = names;
-          targetData[rowIndex][columnIndex] = names;
-          if (files[0] && currentSupabaseUser && cloudModeAvailable() && ["warranties", "certificates"].includes(listName)) {
-            const documentUrlIndex = listColumns[listName].indexOf("documentUrl");
+          if (files.length && currentSupabaseUser && cloudModeAvailable() && listColumns[listName].includes("documentUrl")) {
             attachmentStatus.textContent = "Uploading to Supabase...";
             try {
-              const uploadedUrl = await uploadAttachmentToSupabase(listName, files[0]);
-              if (uploadedUrl && documentUrlIndex >= 0) targetData[rowIndex][documentUrlIndex] = uploadedUrl;
-              attachmentUrls.set(attachmentKey(listName, rowIndex, files[0].name), uploadedUrl);
+              for (const file of files) {
+                const uploadedUrl = await uploadAttachmentToSupabase(listName, file);
+                nextUrls.push(uploadedUrl || "");
+                attachmentUrls.set(attachmentKey(listName, rowIndex, file.name), uploadedUrl);
+              }
               attachmentStatus.textContent = "Uploaded";
-              renderEditors();
             } catch (error) {
               attachmentStatus.textContent = "Upload failed";
               alert(`Supabase upload failed: ${error.message || "Check the storage bucket and policies, then try again."}`);
             }
+          } else {
+            files.forEach(() => nextUrls.push(""));
           }
-          syncAttachmentOpenLink();
+          updateAttachmentValues(nextNames, nextUrls);
+          renderAttachmentList();
           persistAndRender();
+          fileInput.value = "";
         });
-        syncAttachmentOpenLink();
-        td.appendChild(attachmentText);
+        renderAttachmentList();
+        td.appendChild(attachmentList);
+        td.appendChild(attachmentChoose);
         td.appendChild(fileInput);
-        td.appendChild(attachmentOpen);
         td.appendChild(attachmentStatus);
         tr.appendChild(td);
         return;
@@ -1811,6 +1897,103 @@ function createTableRows(listName, rows) {
     action.appendChild(remove);
     tr.appendChild(action);
     target.appendChild(tr);
+  });
+}
+
+const sectionAttachmentLabels = {
+  technical: "Attached Documents",
+  spares: "Attached Documents",
+  safety: "Attached Documents",
+};
+
+function renderSectionAttachmentEditors() {
+  document.querySelectorAll("[data-section-attachments]").forEach((container) => {
+    const sectionKey = container.dataset.sectionAttachments;
+    const manual = currentManual();
+    if (!manual.attachments) manual.attachments = cloneData(sectionDefaults.attachments);
+    if (!manual.attachments[sectionKey]) manual.attachments[sectionKey] = [];
+    const rows = manual.attachments[sectionKey];
+    const fileItems = rows.flatMap((row, rowIndex) =>
+      splitAttachmentList(row[0]).map((name, fileIndex) => ({ name, rowIndex, fileIndex })),
+    );
+    container.innerHTML = `
+      <div class="attachment-file-list">
+        ${
+          fileItems.length
+            ? `<ul class="attachment-name-list">
+                ${fileItems
+                .map(
+                  (item) => `
+                    <li class="attachment-file-item">
+                      <span>${escapeHtml(item.name)}</span>
+                      <div class="attachment-file-actions">
+                        <button class="secondary section-attachment-open-file" data-index="${item.rowIndex}" data-file-index="${item.fileIndex}" type="button">Open</button>
+                        <button class="secondary section-attachment-remove-file" data-index="${item.rowIndex}" data-file-index="${item.fileIndex}" type="button">Remove</button>
+                      </div>
+                    </li>
+                  `,
+                )
+                .join("")}
+              </ul>`
+            : '<p class="empty-note">No files attached.</p>'
+        }
+      </div>
+      <button class="secondary attachment-choose section-attachment-add" type="button">Choose Attached Documents</button>
+    `;
+    const fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.multiple = true;
+    fileInput.hidden = true;
+    fileInput.addEventListener("change", async () => {
+      const files = [...fileInput.files];
+      if (!files.length) return;
+      const names = files.map((file) => file.name).join(", ");
+      const urls = [];
+      if (currentSupabaseUser && cloudModeAvailable()) {
+        try {
+          for (const file of files) urls.push(await uploadAttachmentToSupabase(sectionKey, file));
+        } catch (error) {
+          alert(`Supabase upload failed: ${error.message || "Check the storage bucket and policies, then try again."}`);
+        }
+      } else {
+        files.forEach((file) => {
+          attachmentUrls.set(attachmentKey(sectionKey, rows.length, file.name), URL.createObjectURL(file));
+        });
+      }
+      rows.push([names, urls.filter(Boolean).join(", ")]);
+      renderEditors();
+      persistAndRender();
+      fileInput.value = "";
+    });
+    container.appendChild(fileInput);
+    container.querySelector(".section-attachment-add")?.addEventListener("click", () => {
+      fileInput.click();
+    });
+    container.querySelectorAll(".section-attachment-open-file").forEach((button) => {
+      button.addEventListener("click", () => {
+        const rowIndex = Number(button.dataset.index);
+        const fileIndex = Number(button.dataset.fileIndex);
+        const row = rows[rowIndex];
+        const name = splitAttachmentList(row?.[0])[fileIndex] || "";
+        const url = sectionAttachmentUrl(sectionKey, rowIndex, row, name);
+        if (url) openAttachmentUrl(url);
+        else alert("This file needs to be selected again before it can be opened.");
+      });
+    });
+    container.querySelectorAll(".section-attachment-remove-file").forEach((button) => {
+      button.addEventListener("click", () => {
+        const rowIndex = Number(button.dataset.index);
+        const fileIndex = Number(button.dataset.fileIndex);
+        const names = splitAttachmentList(rows[rowIndex]?.[0]);
+        const urls = splitAttachmentList(rows[rowIndex]?.[1]);
+        names.splice(fileIndex, 1);
+        urls.splice(fileIndex, 1);
+        if (names.length) rows[rowIndex] = [names.join(", "), urls.join(", ")];
+        else rows.splice(rowIndex, 1);
+        renderEditors();
+        persistAndRender();
+      });
+    });
   });
 }
 
@@ -2525,6 +2708,7 @@ function renderEditors() {
   });
   renderSiteDetailsTree();
   renderServiceClassificationTable();
+  renderSectionAttachmentEditors();
   createTableRows("contacts", manual.contacts);
   createTableRows("equipment", manual.equipment);
   createTableRows("maintenance", manual.maintenance);
@@ -2556,7 +2740,7 @@ function renderProjectImagePreview() {
 
 function tableHtml(headers, rows, detail = {}) {
   if (!rows.length) return '<p class="empty-note">No records added.</p>';
-  const attachmentIndex = headers.indexOf("Attached Document");
+  const attachmentIndex = headers.findIndex((header) => header === "Attached Document" || header === "Attached Documents");
   return `
     <table>
       <thead><tr>${headers.map((header) => `<th>${header}</th>`).join("")}</tr></thead>
@@ -2590,8 +2774,26 @@ function tableHtml(headers, rows, detail = {}) {
   `;
 }
 
+function attachmentNamesHtml(namesValue, urlsValue = "") {
+  const names = splitAttachmentList(namesValue);
+  const urls = splitAttachmentList(urlsValue);
+  if (!names.length && !urls.length) return '<span class="empty-note">No files attached.</span>';
+  const labels = names.length ? names : urls;
+  return `<ul class="attachment-name-list">${labels
+    .map((name, index) => {
+      const url = urls[index] || urls[0] || "";
+      return `<li>${
+        url
+          ? `<a class="attachment-link" href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(name)}</a>`
+          : escapeHtml(name)
+      }</li>`;
+    })
+    .join("")}</ul>`;
+}
+
 function attachmentButton(name, detail = {}) {
   const url = detail.url || "";
+  if (String(name || "").includes(",") || String(url || "").includes(",")) return attachmentNamesHtml(name, url);
   if (url) {
     return `<a class="attachment-link" href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(name || url)}</a>`;
   }
@@ -2606,6 +2808,17 @@ function attachmentButton(name, detail = {}) {
       data-attachment-asset="${escapeHtml(detail.assetId || "")}"
       data-attachment-record="${escapeHtml(detail.record || "")}"
     >${escapeHtml(name)}</button>
+  `;
+}
+
+function sectionAttachmentsHtml(manual, sectionKey) {
+  const rows = manual.attachments?.[sectionKey] || [];
+  if (!rows.length) return "";
+  return `
+    <h6>Attached Documents</h6>
+    <div class="manual-attachments">
+      ${rows.map((row) => attachmentNamesHtml(row[0], row[1])).join("")}
+    </div>
   `;
 }
 
@@ -2657,7 +2870,7 @@ function maintenanceScheduleHtml(manual, prefix = "asset") {
     <table>
       <thead>
         <tr>
-          ${["Asset ID", "Frequency", "Unit", "Routine", "Details"].map((header) => `<th>${header}</th>`).join("")}
+          ${["Asset ID", "Description", "Frequency", "Unit", "Routine", "Attached Documents"].map((header) => `<th>${header}</th>`).join("")}
         </tr>
       </thead>
       <tbody>
@@ -2670,21 +2883,16 @@ function maintenanceScheduleHtml(manual, prefix = "asset") {
               <tr>
                 <td>${assetCell}</td>
                 <td>${textOrDash(descriptions.get(row[0]))}</td>
-                ${row
-                  .slice(1, 6)
-                  .map((cell, index) => {
-                    const columnIndex = index + 1;
-                    return `<td>${
-                      columnIndex === 5
-                        ? attachmentButton(cell, {
-                            section: "Warranties",
-                            assetId: row[0] || "",
-                            record: descriptions.get(row[0]) || "",
-                          })
-                        : textOrDash(cell)
-                    }</td>`;
-                  })
-                  .join("")}
+                <td>${textOrDash(row[1])}</td>
+                <td>${textOrDash(row[2])}</td>
+                <td>${textOrDash(row[3])}</td>
+                <td>${row[4] ? attachmentButton(row[4], {
+                  section: "Maintenance",
+                  listName: "maintenance",
+                  assetId: row[0] || "",
+                  record: descriptions.get(row[0]) || "",
+                  url: row[5] || "",
+                }) : textOrDash("")}</td>
               </tr>
             `;
           })
@@ -2705,7 +2913,7 @@ function warrantiesHtml(manual, prefix = "asset") {
     <table>
       <thead>
         <tr>
-          ${["Asset ID", "Description", "Provider", "Start", "Expiry", "Conditions / Claim Details", "Attached Document"].map((header) => `<th>${header}</th>`).join("")}
+          ${["Asset ID", "Description", "Provider", "Start", "Expiry", "Conditions / Claim Details", "Attached Documents"].map((header) => `<th>${header}</th>`).join("")}
         </tr>
       </thead>
       <tbody>
@@ -2719,7 +2927,7 @@ function warrantiesHtml(manual, prefix = "asset") {
                 <td>${assetCell}</td>
                 <td>${textOrDash(descriptions.get(row[0]))}</td>
                 ${row
-                  .slice(1)
+                  .slice(1, 6)
                   .map((cell, index) => {
                     const columnIndex = index + 1;
                     return `<td>${
@@ -2748,36 +2956,51 @@ function warrantiesHtml(manual, prefix = "asset") {
 function appendicesHtml(manual) {
   const descriptions = assetDescriptions(manual);
   const rows = [];
-  manual.warranties.forEach((row, rowIndex) => {
-    if (!row[5] && !row[6]) return;
+  const pushListRows = (section, listName, assetIndex, recordIndexes, attachmentIndex, urlIndex) => {
+    (manual[listName] || []).forEach((row, rowIndex) => {
+      if (!row[attachmentIndex] && !row[urlIndex]) return;
+      const assetId = assetIndex >= 0 ? row[assetIndex] || "" : "";
+      rows.push([
+        section,
+        assetId,
+        recordIndexes.map((index) => row[index]).filter(Boolean).join(" - ") || descriptions.get(assetId) || "",
+        row[attachmentIndex] || row[urlIndex],
+        listName,
+        rowIndex,
+        row[urlIndex] || "",
+      ]);
+    });
+  };
+  pushListRows("Maintenance", "maintenance", 0, [3], 4, 5);
+  pushListRows("Commissioning", "commissioning", -1, [0, 1], 5, 6);
+  pushListRows("Warranties", "warranties", 0, [1, 4], 5, 6);
+  pushListRows("Certificates", "certificates", -1, [0, 1], 5, 6);
+  pushListRows("As Builts", "asBuilts", -1, [0, 1], 5, 6);
+  pushListRows("Documents", "documents", -1, [0, 1], 4, 5);
+  Object.entries({
+    technical: "Technical Data",
+    spares: "Spare Parts",
+    safety: "Safety",
+  }).forEach(([key, label]) => {
+    (manual.attachments?.[key] || []).forEach((row, rowIndex) => {
+      if (!row[0] && !row[1]) return;
     rows.push([
-      "Warranties",
-      row[0] || "",
-      descriptions.get(row[0]) || "",
-      row[5] || row[6],
-      "warranties",
-      rowIndex,
-      row[6] || "",
-    ]);
-  });
-  manual.certificates.forEach((row, rowIndex) => {
-    if (!row[5] && !row[6]) return;
-    rows.push([
-      "Certificates",
+      label,
       "",
-      [row[0], row[1]].filter(Boolean).join(" - "),
-      row[5] || row[6],
-      "certificates",
+      label,
+      row[0] || row[1],
+      key,
       rowIndex,
-      row[6] || "",
+      row[1] || "",
     ]);
+    });
   });
   if (!rows.length) return '<p class="empty-note">No records added.</p>';
   return `
     <table>
       <thead>
         <tr>
-          ${["Section", "Asset ID", "Asset / Record", "Attached Document"].map((header) => `<th>${header}</th>`).join("")}
+          ${["Section", "Asset ID", "Asset / Record", "Attached Documents"].map((header) => `<th>${header}</th>`).join("")}
         </tr>
       </thead>
       <tbody>
@@ -2884,6 +3107,7 @@ function folderManualHtml(folder) {
         ${paragraph(f.operatingInstructions)}
         <h6>Technical Data</h6>
         ${paragraph(f.technicalData)}
+        ${sectionAttachmentsHtml(folder.data, "technical")}
 
         ${anchorTarget(sectionAnchor(folder, "toc-maintenance"))}
         <h5>5. Maintenance Schedule</h5>
@@ -2892,7 +3116,10 @@ function folderManualHtml(folder) {
         ${anchorTarget(sectionAnchor(folder, "toc-commissioning"))}
         <h5>6. Commissioning</h5>
         ${paragraph(f.commissioningSummary)}
-        ${tableHtml(["Asset / System", "Test / Activity", "Date", "Result", "Witness / Sign-off"], folder.data.commissioning)}
+        ${tableHtml(["Asset / System", "Test / Activity", "Date", "Result", "Witness / Sign-off", "Attached Documents"], folder.data.commissioning, {
+          listName: "commissioning",
+          section: "Commissioning",
+        })}
 
         ${anchorTarget(sectionAnchor(folder, "toc-warranties"))}
         <h5>7. Warranties</h5>
@@ -2900,7 +3127,7 @@ function folderManualHtml(folder) {
 
         ${anchorTarget(sectionAnchor(folder, "toc-certificates"))}
         <h5>8. Certificates</h5>
-        ${tableHtml(["Certificate Type", "Reference", "Issued By", "Issue Date", "Notes", "Attached Document"], folder.data.certificates, {
+        ${tableHtml(["Certificate Type", "Reference", "Issued By", "Issue Date", "Notes", "Attached Documents"], folder.data.certificates, {
           listName: "certificates",
           section: "Certificates",
         })}
@@ -2908,6 +3135,7 @@ function folderManualHtml(folder) {
         ${anchorTarget(sectionAnchor(folder, "toc-safety"))}
         <h5>9. Safety Requirements</h5>
         ${paragraph(f.safetyRequirements)}
+        ${sectionAttachmentsHtml(folder.data, "safety")}
 
         ${anchorTarget(sectionAnchor(folder, "toc-emergency"))}
         <h5>10. Emergency Procedures</h5>
@@ -2916,14 +3144,21 @@ function folderManualHtml(folder) {
         ${anchorTarget(sectionAnchor(folder, "toc-spare-parts"))}
         <h5>11. Spare Parts</h5>
         ${paragraph(f.spareParts)}
+        ${sectionAttachmentsHtml(folder.data, "spares")}
 
         ${anchorTarget(sectionAnchor(folder, "toc-as-builts"))}
         <h5>12. As Builts</h5>
-        ${tableHtml(["Drawing / Model", "Revision", "Date", "Location / Reference", "Notes"], folder.data.asBuilts)}
+        ${tableHtml(["Drawing / Model", "Revision", "Date", "Location / Reference", "Notes", "Attached Documents"], folder.data.asBuilts, {
+          listName: "asBuilts",
+          section: "As Builts",
+        })}
 
         ${anchorTarget(sectionAnchor(folder, "toc-documents"))}
         <h5>13. Documents and References</h5>
-        ${tableHtml(["Type", "Title", "Reference / Location", "Notes"], folder.data.documents)}
+        ${tableHtml(["Type", "Title", "Reference / Location", "Notes", "Attached Documents"], folder.data.documents, {
+          listName: "documents",
+          section: "Documents",
+        })}
 
         ${anchorTarget(sectionAnchor(folder, "toc-appendices"))}
         <h5>14. Appendices</h5>
@@ -3151,7 +3386,7 @@ function wireAttachmentPreviewClicks() {
         return;
       }
       const lines = [
-        `Attached document: ${button.dataset.attachmentName || "Not provided"}`,
+        `Attached documents: ${button.dataset.attachmentName || "Not provided"}`,
         button.dataset.attachmentSection ? `Section: ${button.dataset.attachmentSection}` : "",
         button.dataset.attachmentAsset ? `Asset ID: ${button.dataset.attachmentAsset}` : "",
         button.dataset.attachmentRecord ? `Record: ${button.dataset.attachmentRecord}` : "",
