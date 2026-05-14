@@ -1527,6 +1527,38 @@ function getAttachmentUrl(listName, rowIndex, name) {
   return attachmentUrls.get(attachmentKey(listName, rowIndex, firstName));
 }
 
+function safeStorageFileName(name) {
+  const text = String(name || "attachment").trim();
+  const parts = text.split(".");
+  const extension = parts.length > 1 ? `.${parts.pop().replace(/[^a-z0-9]/gi, "").toLowerCase()}` : "";
+  const base = slug(parts.join(".") || text) || "attachment";
+  return `${base}${extension}`;
+}
+
+function attachmentFolderName(listName) {
+  return {
+    warranties: "warranties",
+    certificates: "certificates",
+  }[listName] || "other";
+}
+
+async function uploadAttachmentToSupabase(listName, file) {
+  const client = initialiseSupabaseClient();
+  if (!client || !currentSupabaseUser) return null;
+  const projectName = slug(projectDatabaseName() || state.fields.projectName || "untitled-project");
+  const folderName = attachmentFolderName(listName);
+  const timestamp = new Date().toISOString().replace(/[^0-9]/g, "");
+  const path = `${currentSupabaseUser.id}/${projectName}/${folderName}/${timestamp}-${safeStorageFileName(file.name)}`;
+  const { error } = await client.storage.from("om-attachments").upload(path, file, {
+    cacheControl: "3600",
+    upsert: false,
+  });
+  if (error) throw error;
+  const { data, error: signedUrlError } = await client.storage.from("om-attachments").createSignedUrl(path, 60 * 60 * 24 * 365);
+  if (signedUrlError) throw signedUrlError;
+  return data?.signedUrl || "";
+}
+
 function openAttachmentUrl(url) {
   const link = document.createElement("a");
   link.href = url;
@@ -1604,8 +1636,10 @@ function createTableRows(listName, rows) {
       if (column === "attachment") {
         const attachmentText = document.createElement("input");
         const attachmentOpen = document.createElement("button");
+        const attachmentStatus = document.createElement("span");
         attachmentOpen.className = "secondary attachment-open";
         attachmentOpen.type = "button";
+        attachmentStatus.className = "attachment-status";
         const syncAttachmentOpenLink = () => {
           const url = getAttachmentUrl(listName, rowIndex, attachmentText.value);
           attachmentOpen.textContent = url ? "Open selected file" : "Choose file to open";
@@ -1630,17 +1664,31 @@ function createTableRows(listName, rows) {
         const fileInput = document.createElement("input");
         fileInput.className = "file-picker";
         fileInput.type = "file";
-        fileInput.addEventListener("change", () => {
+        fileInput.addEventListener("change", async () => {
           const files = [...fileInput.files];
           const names = files.map((file) => file.name).join(", ");
-          files.forEach((file) => {
+          for (const file of files) {
             const key = attachmentKey(listName, rowIndex, file.name);
             const previousUrl = attachmentUrls.get(key);
             if (previousUrl) URL.revokeObjectURL(previousUrl);
             attachmentUrls.set(key, URL.createObjectURL(file));
-          });
+          }
           attachmentText.value = names;
           targetData[rowIndex][columnIndex] = names;
+          if (files[0] && currentSupabaseUser && cloudModeAvailable() && ["warranties", "certificates"].includes(listName)) {
+            const documentUrlIndex = listColumns[listName].indexOf("documentUrl");
+            attachmentStatus.textContent = "Uploading to Supabase...";
+            try {
+              const uploadedUrl = await uploadAttachmentToSupabase(listName, files[0]);
+              if (uploadedUrl && documentUrlIndex >= 0) targetData[rowIndex][documentUrlIndex] = uploadedUrl;
+              attachmentUrls.set(attachmentKey(listName, rowIndex, files[0].name), uploadedUrl);
+              attachmentStatus.textContent = "Uploaded";
+              renderEditors();
+            } catch (error) {
+              attachmentStatus.textContent = "Upload failed";
+              alert(`Supabase upload failed: ${error.message || "Check the storage bucket and policies, then try again."}`);
+            }
+          }
           syncAttachmentOpenLink();
           persistAndRender();
         });
@@ -1648,6 +1696,7 @@ function createTableRows(listName, rows) {
         td.appendChild(attachmentText);
         td.appendChild(fileInput);
         td.appendChild(attachmentOpen);
+        td.appendChild(attachmentStatus);
         tr.appendChild(td);
         return;
       }
@@ -2516,7 +2565,7 @@ function tableHtml(headers, rows, detail = {}) {
           .map(
             (row, rowIndex) => `
               <tr>
-                ${row
+                ${row.slice(0, headers.length)
                   .map((cell, index) =>
                     `<td>${
                       index === attachmentIndex && cell
@@ -2622,7 +2671,7 @@ function maintenanceScheduleHtml(manual, prefix = "asset") {
                 <td>${assetCell}</td>
                 <td>${textOrDash(descriptions.get(row[0]))}</td>
                 ${row
-                  .slice(1)
+                  .slice(1, 6)
                   .map((cell, index) => {
                     const columnIndex = index + 1;
                     return `<td>${
@@ -3090,6 +3139,7 @@ function importExcelWorkbook(workbook) {
 
 function wireAttachmentPreviewClicks() {
   document.querySelectorAll(".attachment-link").forEach((button) => {
+    if (button.tagName.toLowerCase() === "a" && button.getAttribute("href")) return;
     button.addEventListener("click", () => {
       const url = getAttachmentUrl(
         button.dataset.attachmentList || "",

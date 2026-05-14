@@ -973,6 +973,14 @@ textarea {
   margin-top: 6px;
 }
 
+.attachment-status {
+  color: var(--muted);
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin-top: 6px;
+}
+
 .wide-description-cell,
 .asset-register-table td {
   min-width: 240px;
