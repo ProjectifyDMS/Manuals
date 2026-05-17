@@ -1122,6 +1122,11 @@ textarea {
   min-width: 180px;
 }
 
+.user-management-table input {
+  min-width: 210px;
+  width: 100%;
+}
+
 .user-management-actions {
   align-items: center;
   display: flex;

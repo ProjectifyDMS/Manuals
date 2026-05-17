@@ -744,6 +744,7 @@ const attachmentUrls = new Map();
 let supabaseClient = null;
 let currentSupabaseUser = null;
 let currentUserRole = "admin";
+let currentUserProfile = null;
 let cloudProjectRecords = [];
 let userProfileRecords = [];
 let selectedContactInitial = "all";
@@ -1115,6 +1116,9 @@ function applyRolePermissions() {
     const isCurrentAdmin = select.dataset.managedUserRole === currentSupabaseUser?.id && currentUserRole === "admin";
     select.disabled = !canManageSettings || isCurrentAdmin;
   });
+  document.querySelectorAll("[data-managed-user-name]").forEach((input) => {
+    input.disabled = !canManageSettings;
+  });
   document.querySelectorAll("#manualForm input, #manualForm textarea, #manualForm select").forEach((control) => {
     if (control.closest(".role-permissions")) {
       control.disabled = !canManageSettings || control.dataset.roleKey === "admin";
@@ -1156,6 +1160,7 @@ function applyRolePermissions() {
 
 async function fetchCurrentUserRole() {
   currentUserRole = currentSupabaseUser ? "editor" : "admin";
+  currentUserProfile = null;
   const client = initialiseSupabaseClient();
   if (!client || !currentSupabaseUser) {
     applyRolePermissions();
@@ -1163,12 +1168,13 @@ async function fetchCurrentUserRole() {
   }
   const { data, error } = await client
     .from(SUPABASE_PROFILES_TABLE)
-    .select("role")
+    .select("user_id,email,display_name,role")
     .eq("user_id", currentSupabaseUser.id)
     .maybeSingle();
   if (error) {
     setLoginMessage("User role table is not ready yet. Run the updated Supabase SQL setup.");
   }
+  currentUserProfile = data || null;
   currentUserRole = data?.role || "editor";
   applyRolePermissions();
   return currentUserRole;
@@ -1329,7 +1335,9 @@ function clearLoginTime() {
 }
 
 function currentUserLabel() {
-  if (currentSupabaseUser) return currentSupabaseUser.email || currentSupabaseUser.id || "Supabase user";
+  if (currentSupabaseUser) {
+    return currentUserProfile?.display_name || currentSupabaseUser.email || currentSupabaseUser.id || "Supabase user";
+  }
   const profile = loadLoginProfile();
   return profile?.username || "Local user";
 }
@@ -1395,7 +1403,8 @@ function renderUserManagementPanel(message = "") {
         ? `<table class="user-management-table">
             <thead>
               <tr>
-                <th>User</th>
+                <th>Email</th>
+                <th>Username</th>
                 <th>Role</th>
                 <th>Status</th>
               </tr>
@@ -1409,6 +1418,9 @@ function renderUserManagementPanel(message = "") {
                       <td>
                         <strong>${escapeHtml(profile.email || "No email recorded")}</strong>
                         ${isCurrentUser ? "<small>Current user</small>" : ""}
+                      </td>
+                      <td>
+                        <input data-managed-user-name="${escapeHtml(profile.user_id)}" value="${escapeHtml(profile.display_name || "")}" placeholder="Display name" />
                       </td>
                       <td>
                         <select data-managed-user-role="${escapeHtml(profile.user_id)}" ${isCurrentUser && profile.role === "admin" ? "disabled" : ""}>
@@ -1437,7 +1449,7 @@ async function refreshUserManagementProfiles(message = "") {
   target.innerHTML = '<div class="settings-note">Loading users...</div>';
   const { data, error } = await initialiseSupabaseClient()
     .from(SUPABASE_PROFILES_TABLE)
-    .select("user_id,email,role,updated_at")
+    .select("user_id,email,display_name,role,updated_at")
     .order("email", { ascending: true });
   if (error) {
     userProfileRecords = [];
@@ -1471,6 +1483,31 @@ async function updateManagedUserRole(userId, role) {
   }
   if (userId === currentSupabaseUser.id) currentUserRole = role;
   await refreshUserManagementProfiles("Role updated.");
+}
+
+async function updateManagedUserDisplayName(userId, displayName) {
+  if (!userCanManageSettings()) return alert("Only users with Settings permission can manage usernames.");
+  if (!currentSupabaseUser || !cloudModeAvailable()) return alert("User management needs Supabase login.");
+  const { error } = await initialiseSupabaseClient()
+    .from(SUPABASE_PROFILES_TABLE)
+    .update({
+      display_name: displayName.trim(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", userId);
+  if (error) {
+    renderUserManagementPanel(`Could not update username: ${error.message}`);
+    applyRolePermissions();
+    return;
+  }
+  if (userId === currentSupabaseUser.id) {
+    currentUserProfile = {
+      ...(currentUserProfile || {}),
+      display_name: displayName.trim(),
+    };
+  }
+  await refreshUserManagementProfiles("Username updated.");
+  renderDashboard();
 }
 
 function renderRolePermissionsMatrix() {
@@ -4100,6 +4137,13 @@ function handleManagedUserRoleChange(field) {
   return true;
 }
 
+function handleManagedUserNameChange(field) {
+  const userId = field?.dataset?.managedUserName;
+  if (!userId) return false;
+  updateManagedUserDisplayName(userId, field.value);
+  return true;
+}
+
 document.addEventListener("input", (event) => {
   if (event.target?.id === "assetQuickSearch") {
     assetSearchQuery = event.target.value;
@@ -4122,6 +4166,7 @@ document.addEventListener("input", (event) => {
 });
 
 document.addEventListener("change", (event) => {
+  if (handleManagedUserNameChange(event.target)) return;
   if (handleManagedUserRoleChange(event.target)) return;
   if (handleRolePermissionChange(event.target)) return;
   handleReviewFieldInput(event.target);
@@ -4441,6 +4486,7 @@ document.querySelector("#logoutUser").addEventListener("click", async () => {
   if (currentSupabaseUser && cloudModeAvailable()) await initialiseSupabaseClient().auth.signOut();
   currentSupabaseUser = null;
   currentUserRole = "editor";
+  currentUserProfile = null;
   applyRolePermissions();
   sessionStorage.removeItem(LOGIN_SESSION_KEY);
   clearLoginTime();

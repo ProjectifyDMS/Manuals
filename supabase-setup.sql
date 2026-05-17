@@ -1,9 +1,12 @@
 create table if not exists public.om_profiles (
   user_id uuid primary key references auth.users(id) on delete cascade,
   email text,
+  display_name text,
   role text not null default 'editor',
   updated_at timestamptz not null default now()
 );
+
+alter table public.om_profiles add column if not exists display_name text;
 
 alter table public.om_profiles drop constraint if exists om_profiles_role_check;
 alter table public.om_profiles
@@ -33,8 +36,13 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.om_profiles (user_id, email, role)
-  values (new.id, new.email, 'editor')
+  insert into public.om_profiles (user_id, email, display_name, role)
+  values (
+    new.id,
+    new.email,
+    coalesce(new.raw_user_meta_data->>'display_name', new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
+    'editor'
+  )
   on conflict (user_id) do nothing;
   return new;
 end;
@@ -60,10 +68,18 @@ to authenticated
 using (public.is_om_admin())
 with check (public.is_om_admin());
 
-insert into public.om_profiles (user_id, email, role)
-select id, email, 'editor'
+insert into public.om_profiles (user_id, email, display_name, role)
+select id, email, coalesce(raw_user_meta_data->>'display_name', raw_user_meta_data->>'full_name', split_part(email, '@', 1)), 'editor'
 from auth.users
 on conflict (user_id) do nothing;
+
+update public.om_profiles profile
+set
+  email = coalesce(profile.email, auth_user.email),
+  display_name = coalesce(profile.display_name, auth_user.raw_user_meta_data->>'display_name', auth_user.raw_user_meta_data->>'full_name', split_part(auth_user.email, '@', 1))
+from auth.users auth_user
+where profile.user_id = auth_user.id
+  and (profile.email is null or profile.display_name is null);
 
 create table if not exists public.om_projects (
   id uuid primary key default gen_random_uuid(),
