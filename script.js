@@ -1176,6 +1176,7 @@ async function fetchCurrentUserRole() {
   }
   currentUserProfile = data || null;
   currentUserRole = data?.role || "editor";
+  updateCurrentUserDisplay();
   applyRolePermissions();
   return currentUserRole;
 }
@@ -1342,6 +1343,19 @@ function currentUserLabel() {
   return profile?.username || "Local user";
 }
 
+function updateCurrentUserDisplay() {
+  const badge = document.querySelector("#currentUserBadge");
+  if (badge) {
+    badge.textContent = document.body.classList.contains("login-locked")
+      ? "Not logged in"
+      : `${currentUserLabel()} | ${roleLabel(currentUserRole)}`;
+  }
+  const summary = document.querySelector("#loginUserSummary");
+  if (summary) {
+    summary.textContent = `Signed in as ${currentUserLabel()}. Choose a project to continue.`;
+  }
+}
+
 function roleLabel(role) {
   return roleDisplayNames[role] || String(role || "editor").replace(/^\w/, (letter) => letter.toUpperCase());
 }
@@ -1482,6 +1496,7 @@ async function updateManagedUserRole(userId, role) {
     return;
   }
   if (userId === currentSupabaseUser.id) currentUserRole = role;
+  updateCurrentUserDisplay();
   await refreshUserManagementProfiles("Role updated.");
 }
 
@@ -1506,6 +1521,7 @@ async function updateManagedUserDisplayName(userId, displayName) {
       display_name: displayName.trim(),
     };
   }
+  updateCurrentUserDisplay();
   await refreshUserManagementProfiles("Username updated.");
   renderDashboard();
 }
@@ -1564,19 +1580,22 @@ function renderRolePermissionsMatrix() {
 async function populateLoginProjectSelect() {
   const select = document.querySelector("#loginProjectSelect");
   if (!select) return;
+  const openButton = document.querySelector("#loginOpenProject");
   if (currentSupabaseUser && cloudModeAvailable()) {
     const records = await refreshCloudProjectRecords();
     select.innerHTML = [
-      '<option value="">Select saved project...</option>',
+      `<option value="">${records.length ? "Select saved project..." : "No saved projects yet"}</option>`,
       ...records.map((record) => `<option value="${escapeHtml(cloudProjectOptionValue(record))}">${escapeHtml(record.name)}</option>`),
     ].join("");
+    if (openButton) openButton.disabled = !records.length;
     return;
   }
   const names = Object.keys(loadProjectDatabase()).sort();
   select.innerHTML = [
-    '<option value="">Select saved project...</option>',
+    `<option value="">${names.length ? "Select saved project..." : "No saved projects yet"}</option>`,
     ...names.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`),
   ].join("");
+  if (openButton) openButton.disabled = !names.length;
 }
 
 function showLoginCredentialsStep() {
@@ -1585,29 +1604,39 @@ function showLoginCredentialsStep() {
   const isSetup = !isCloud && !profile;
   document.querySelector("#loginCredentialsStep").hidden = false;
   document.querySelector("#loginProjectStep").hidden = true;
-  document.querySelector("#loginTitle").textContent = isCloud ? "Supabase Login" : isSetup ? "Create Login" : "Login";
+  document.querySelector("#loginTitle").textContent = isSetup ? "Create Local Login" : "Sign In";
   document.querySelector("#loginIntro").textContent = isCloud
-    ? "Enter your Supabase email and password."
+    ? "Enter your email and password."
     : isSetup
     ? "Create a local username and password for this browser."
     : "Enter your local username and password.";
-  document.querySelector("#loginSubmit").textContent = isCloud ? "Continue" : isSetup ? "Create Login" : "Login";
-  document.querySelector("#loginConfirmLabel").hidden = !isSetup;
+  document.querySelector("#loginSubmit").textContent = isSetup ? "Create Login" : "Continue";
+  const confirmLabel = document.querySelector("#loginConfirmLabel");
+  const confirmInput = document.querySelector("#loginConfirmPassword");
+  confirmLabel.hidden = !isSetup;
+  if (confirmInput) confirmInput.required = isSetup;
   ["#loginUsername", "#loginPassword", "#loginConfirmPassword"].forEach((selector) => {
     const field = document.querySelector(selector);
     if (field) field.value = "";
   });
   setLoginMessage("");
+  updateCurrentUserDisplay();
 }
 
 async function showProjectSelectionStep() {
   document.querySelector("#loginCredentialsStep").hidden = true;
   document.querySelector("#loginProjectStep").hidden = false;
+  const newProjectInput = document.querySelector("#loginNewProjectName");
+  if (newProjectInput && !newProjectInput.value.trim()) {
+    newProjectInput.value = state.fields.projectName || "";
+  }
   await populateLoginProjectSelect();
+  updateCurrentUserDisplay();
 }
 
 function unlockApp() {
   document.body.classList.remove("login-locked");
+  updateCurrentUserDisplay();
 }
 
 async function startNewProjectFromLogin() {
