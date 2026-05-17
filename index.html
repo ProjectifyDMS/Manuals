@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>O&M Manual Builder</title>
-    <link rel="stylesheet" href="styles.css?v=20260517-role-matrix" />
+    <link rel="stylesheet" href="styles.css?v=20260517-user-management" />
   </head>
   <body class="login-locked">
     <section class="login-screen" id="loginScreen" aria-label="Login and project selection">
@@ -199,6 +199,11 @@
                 <button class="secondary" id="deleteProjectRecord" type="button">Delete</button>
               </div>
             </div>
+            <div class="section-title folder-builder-title">
+              <h2>User Management</h2>
+              <p>Assign roles to existing Supabase logins.</p>
+            </div>
+            <div id="userManagementPanel" class="user-management-panel"></div>
             <div class="section-title folder-builder-title">
               <h2>User Role Matrix</h2>
               <p>Set what each role can read, edit, upload, submit, review, print, and manage.</p>
@@ -617,6 +622,6 @@
 
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=20260517-role-matrix"></script>
+    <script src="script.js?v=20260517-user-management"></script>
   </body>
 </html>

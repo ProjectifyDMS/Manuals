@@ -745,6 +745,7 @@ let supabaseClient = null;
 let currentSupabaseUser = null;
 let currentUserRole = "admin";
 let cloudProjectRecords = [];
+let userProfileRecords = [];
 let selectedContactInitial = "all";
 let assetSearchQuery = "";
 let maintenanceSearchQuery = "";
@@ -1110,6 +1111,10 @@ function applyRolePermissions() {
   document.querySelectorAll("[data-role-permission]").forEach((checkbox) => {
     checkbox.disabled = !canManageSettings || checkbox.dataset.roleKey === "admin";
   });
+  document.querySelectorAll("[data-managed-user-role]").forEach((select) => {
+    const isCurrentAdmin = select.dataset.managedUserRole === currentSupabaseUser?.id && currentUserRole === "admin";
+    select.disabled = !canManageSettings || isCurrentAdmin;
+  });
   document.querySelectorAll("#manualForm input, #manualForm textarea, #manualForm select").forEach((control) => {
     if (control.closest(".role-permissions")) {
       control.disabled = !canManageSettings || control.dataset.roleKey === "admin";
@@ -1333,6 +1338,12 @@ function roleLabel(role) {
   return roleDisplayNames[role] || String(role || "editor").replace(/^\w/, (letter) => letter.toUpperCase());
 }
 
+function roleOptionsHtml(selectedRole = "editor") {
+  return Object.keys(roleDisplayNames)
+    .map((roleKey) => `<option value="${escapeHtml(roleKey)}" ${roleKey === selectedRole ? "selected" : ""}>${escapeHtml(roleDisplayNames[roleKey])}</option>`)
+    .join("");
+}
+
 function auditSessionHtml() {
   let loggedInAt = currentLoginTime;
   try {
@@ -1352,6 +1363,114 @@ function auditSessionHtml() {
       Current user: ${escapeHtml(currentUserLabel())} | Role: ${escapeHtml(roleLabel(currentUserRole))} | Logged in: ${escapeHtml(timeText)}
     </p>
   `;
+}
+
+function renderUserManagementPanel(message = "") {
+  const target = document.querySelector("#userManagementPanel");
+  if (!target) return;
+  if (!currentSupabaseUser || !cloudModeAvailable()) {
+    target.innerHTML = `
+      <div class="settings-note">
+        User management is available when the app is running with Supabase login.
+      </div>
+    `;
+    return;
+  }
+  if (!userCanManageSettings()) {
+    target.innerHTML = `
+      <div class="settings-note">
+        Only users with Settings permission can manage roles.
+      </div>
+    `;
+    return;
+  }
+  const rows = userProfileRecords || [];
+  target.innerHTML = `
+    <div class="user-management-actions">
+      <button class="secondary" id="refreshUserProfiles" type="button">Refresh Users</button>
+      ${message ? `<span class="inline-status">${escapeHtml(message)}</span>` : ""}
+    </div>
+    ${
+      rows.length
+        ? `<table class="user-management-table">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Role</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows
+                .map((profile) => {
+                  const isCurrentUser = profile.user_id === currentSupabaseUser?.id;
+                  return `
+                    <tr>
+                      <td>
+                        <strong>${escapeHtml(profile.email || "No email recorded")}</strong>
+                        ${isCurrentUser ? "<small>Current user</small>" : ""}
+                      </td>
+                      <td>
+                        <select data-managed-user-role="${escapeHtml(profile.user_id)}" ${isCurrentUser && profile.role === "admin" ? "disabled" : ""}>
+                          ${roleOptionsHtml(profile.role || "editor")}
+                        </select>
+                      </td>
+                      <td>${escapeHtml(roleLabel(profile.role || "editor"))}</td>
+                    </tr>
+                  `;
+                })
+                .join("")}
+            </tbody>
+          </table>`
+        : '<p class="empty-note">No users found yet. Ask users to log in once, then refresh this list.</p>'
+    }
+  `;
+}
+
+async function refreshUserManagementProfiles(message = "") {
+  const target = document.querySelector("#userManagementPanel");
+  if (!target) return;
+  if (!currentSupabaseUser || !cloudModeAvailable() || !userCanManageSettings()) {
+    renderUserManagementPanel(message);
+    return;
+  }
+  target.innerHTML = '<div class="settings-note">Loading users...</div>';
+  const { data, error } = await initialiseSupabaseClient()
+    .from(SUPABASE_PROFILES_TABLE)
+    .select("user_id,email,role,updated_at")
+    .order("email", { ascending: true });
+  if (error) {
+    userProfileRecords = [];
+    renderUserManagementPanel(`Could not load users: ${error.message}`);
+    return;
+  }
+  userProfileRecords = data || [];
+  renderUserManagementPanel(message);
+  applyRolePermissions();
+}
+
+async function updateManagedUserRole(userId, role) {
+  if (!userCanManageSettings()) return alert("Only users with Settings permission can manage roles.");
+  if (!currentSupabaseUser || !cloudModeAvailable()) return alert("User role management needs Supabase login.");
+  if (userId === currentSupabaseUser.id && currentUserRole === "admin" && role !== "admin") {
+    renderUserManagementPanel("Your own Admin role is locked so you do not lose access to Settings.");
+    applyRolePermissions();
+    return;
+  }
+  const { error } = await initialiseSupabaseClient()
+    .from(SUPABASE_PROFILES_TABLE)
+    .update({
+      role,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", userId);
+  if (error) {
+    renderUserManagementPanel(`Could not update role: ${error.message}`);
+    applyRolePermissions();
+    return;
+  }
+  if (userId === currentSupabaseUser.id) currentUserRole = role;
+  await refreshUserManagementProfiles("Role updated.");
 }
 
 function renderRolePermissionsMatrix() {
@@ -3210,6 +3329,7 @@ function renderEditors() {
   });
   renderSiteDetailsTree();
   renderServiceClassificationTable();
+  renderUserManagementPanel();
   renderRolePermissionsMatrix();
   renderSectionAttachmentEditors();
   renderReviewPanels();
@@ -3973,6 +4093,13 @@ function handleRolePermissionChange(field) {
   return true;
 }
 
+function handleManagedUserRoleChange(field) {
+  const userId = field?.dataset?.managedUserRole;
+  if (!userId) return false;
+  updateManagedUserRole(userId, field.value);
+  return true;
+}
+
 document.addEventListener("input", (event) => {
   if (event.target?.id === "assetQuickSearch") {
     assetSearchQuery = event.target.value;
@@ -3995,6 +4122,7 @@ document.addEventListener("input", (event) => {
 });
 
 document.addEventListener("change", (event) => {
+  if (handleManagedUserRoleChange(event.target)) return;
   if (handleRolePermissionChange(event.target)) return;
   handleReviewFieldInput(event.target);
 });
@@ -4038,6 +4166,7 @@ document.querySelector("#openAdministration").addEventListener("click", () => {
   document.querySelectorAll(".tab, .panel").forEach((element) => element.classList.remove("active"));
   settingsPanel.classList.add("active");
   window.scrollTo({ top: 0, behavior: "smooth" });
+  refreshUserManagementProfiles();
   renderPreview();
 });
 
@@ -4159,6 +4288,11 @@ function addServiceClassificationValue(service, subservice = "") {
 }
 
 document.addEventListener("click", (event) => {
+  if (event.target.closest("#refreshUserProfiles")) {
+    event.preventDefault();
+    refreshUserManagementProfiles();
+    return;
+  }
   const serviceSelect = event.target.closest(".service-classification-select");
   if (serviceSelect) {
     event.preventDefault();

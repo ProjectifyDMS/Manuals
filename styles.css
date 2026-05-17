@@ -1068,7 +1068,8 @@ textarea {
   width: 100%;
 }
 
-.role-permissions {
+.role-permissions,
+.user-management-panel {
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1076,39 +1077,64 @@ textarea {
   overflow-x: auto;
 }
 
-.role-permissions-table {
+.role-permissions-table,
+.user-management-table {
   border-collapse: collapse;
   min-width: 860px;
   width: 100%;
 }
 
 .role-permissions-table th,
-.role-permissions-table td {
+.role-permissions-table td,
+.user-management-table th,
+.user-management-table td {
   border-bottom: 1px solid var(--line);
   padding: 12px;
   text-align: center;
   vertical-align: middle;
 }
 
-.role-permissions-table thead th {
+.role-permissions-table thead th,
+.user-management-table thead th {
   background: #eef3f5;
   color: #344150;
   font-size: 0.76rem;
   text-transform: uppercase;
 }
 
-.role-permissions-table tbody th {
+.role-permissions-table tbody th,
+.user-management-table tbody td:first-child {
   color: #1f2a37;
   text-align: left;
   width: 170px;
 }
 
-.role-permissions-table small {
+.role-permissions-table small,
+.user-management-table small {
   color: var(--muted);
   display: block;
   font-size: 0.72rem;
   font-weight: 700;
   margin-top: 2px;
+}
+
+.user-management-table select {
+  min-width: 180px;
+}
+
+.user-management-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px;
+}
+
+.settings-note {
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 700;
+  padding: 14px;
 }
 
 .matrix-check {
