@@ -6,6 +6,7 @@ const LOGIN_SESSION_KEY = "om-manual-builder-login-session-v1";
 const SUPABASE_URL = "https://ixqastmhzqzseokrvsxd.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_IULuuPMBDRN4BmQ-zFscFw_5b7ftrDc";
 const SUPABASE_PROJECTS_TABLE = "om_projects";
+const SUPABASE_PROFILES_TABLE = "om_profiles";
 const KEY_SEPARATOR = "||";
 let storageAvailable = true;
 let selectedSiteDetailPath = {
@@ -649,6 +650,7 @@ let state;
 const attachmentUrls = new Map();
 let supabaseClient = null;
 let currentSupabaseUser = null;
+let currentUserRole = "admin";
 let cloudProjectRecords = [];
 
 function cloneData(value) {
@@ -951,6 +953,43 @@ function cloudModeAvailable() {
   return Boolean(initialiseSupabaseClient());
 }
 
+function userCanManageSettings() {
+  return !currentSupabaseUser || currentUserRole === "admin";
+}
+
+function applyRolePermissions() {
+  const settingsButton = document.querySelector("#openAdministration");
+  if (settingsButton) {
+    settingsButton.hidden = !userCanManageSettings();
+    settingsButton.disabled = !userCanManageSettings();
+    settingsButton.title = userCanManageSettings() ? "" : "Only administrators can open Settings.";
+  }
+  if (!userCanManageSettings() && document.querySelector('[data-panel="settings"]')?.classList.contains("active")) {
+    const projectTab = document.querySelector('.tab[data-tab="project"]') || document.querySelector(".tab");
+    if (projectTab) activateTab(projectTab);
+  }
+}
+
+async function fetchCurrentUserRole() {
+  currentUserRole = currentSupabaseUser ? "editor" : "admin";
+  const client = initialiseSupabaseClient();
+  if (!client || !currentSupabaseUser) {
+    applyRolePermissions();
+    return currentUserRole;
+  }
+  const { data, error } = await client
+    .from(SUPABASE_PROFILES_TABLE)
+    .select("role")
+    .eq("user_id", currentSupabaseUser.id)
+    .maybeSingle();
+  if (error) {
+    setLoginMessage("User role table is not ready yet. Run the updated Supabase SQL setup.");
+  }
+  currentUserRole = data?.role || "editor";
+  applyRolePermissions();
+  return currentUserRole;
+}
+
 function cloudProjectOptionValue(record) {
   return record?.id ? `cloud:${record.id}` : "";
 }
@@ -1144,6 +1183,7 @@ async function initialiseLoginGate() {
     const { data } = await client.auth.getSession();
     currentSupabaseUser = data.session?.user || null;
     if (currentSupabaseUser) {
+      await fetchCurrentUserRole();
       sessionStorage.setItem(LOGIN_SESSION_KEY, "active");
       document.body.classList.add("login-locked");
       await showProjectSelectionStep();
@@ -1153,6 +1193,8 @@ async function initialiseLoginGate() {
   }
   const profile = loadLoginProfile();
   if (!client && sessionStorage.getItem(LOGIN_SESSION_KEY) === "active" && profile) {
+    currentUserRole = "admin";
+    applyRolePermissions();
     unlockApp();
     return;
   }
@@ -1621,6 +1663,10 @@ function openAttachmentUrl(url) {
 }
 
 function activateTab(tab) {
+  if (tab?.dataset?.tab === "settings" && !userCanManageSettings()) {
+    alert("Only administrators can open Settings.");
+    return;
+  }
   document.body.classList.remove("settings-open");
   document.querySelectorAll(".tab, .panel").forEach((element) => element.classList.remove("active"));
   tab.classList.add("active");
@@ -2502,11 +2548,12 @@ function rowCompletion(rows, requiredColumns, labels, emptyMessage) {
   };
 }
 
-function dashboardSection(label, completion) {
+function dashboardSection(label, completion, tab = "") {
   const percent = Math.round((completion.complete / completion.total) * 100);
   const outstanding = completion.outstanding.length ? completion.outstanding.slice(0, 4) : ["Complete"];
   return {
     label,
+    tab,
     complete: completion.complete,
     total: completion.total,
     percent,
@@ -2533,6 +2580,7 @@ function projectDashboardSection() {
       { label: "Project image", value: state.fields.projectImage },
       { label: "Project summary", value: state.fields.projectSummary },
     ]),
+    "project",
   );
 }
 
@@ -2544,32 +2592,36 @@ function dashboardSections(manual = currentManual(), options = {}) {
         { label: "Introduction", value: manual.fields.introduction },
         { label: "Scope of works", value: manual.fields.scopeOfWorks },
       ]),
+      "introduction",
     ),
-    dashboardSection("Key Contacts", rowCompletion(manual.contacts, [0, 1, 2, 3, 4, 5], ["Company Name", "Trade", "Address", "Phone Numbers", "Emails", "Website"], "Add at least one key contact")),
-    dashboardSection("Assets", rowCompletion(manual.equipment, [0, 2, 3, 5, 6, 7, 8, 10, 11, 13, 14, 15], assetHeaders, "Add at least one asset")),
-    dashboardSection("Maintenance", rowCompletion(manual.maintenance, [0, 1, 2, 3], ["Asset ID", "Frequency", "Unit", "Routine"], "Add at least one maintenance task")),
+    dashboardSection("Key Contacts", rowCompletion(manual.contacts, [0, 1, 2, 3, 4, 5], ["Company Name", "Trade", "Address", "Phone Numbers", "Emails", "Website"], "Add at least one key contact"), "contacts"),
+    dashboardSection("Assets", rowCompletion(manual.equipment, [0, 2, 3, 5, 6, 7, 8, 10, 11, 13, 14, 15], assetHeaders, "Add at least one asset"), "equipment"),
+    dashboardSection("Maintenance", rowCompletion(manual.maintenance, [0, 1, 2, 3], ["Asset ID", "Frequency", "Unit", "Routine"], "Add at least one maintenance task"), "maintenance"),
     dashboardSection(
       "Technical Data",
       fieldCompletion([
         { label: "Operating instructions", value: manual.fields.operatingInstructions },
         { label: "Technical data", value: manual.fields.technicalData },
       ]),
+      "technical",
     ),
-    dashboardSection("Warranties", rowCompletion(manual.warranties, [0, 1, 2, 3], ["Asset ID", "Provider", "Start Date", "Expiry Date"], "Add warranty details")),
-    dashboardSection("Certificates", rowCompletion(manual.certificates, [0, 1, 2, 3], ["Certificate Type", "Reference", "Issued By", "Issue Date"], "Add certificate details")),
-    dashboardSection("Commissioning", rowCompletion(manual.commissioning, [0, 1, 2, 3, 4], ["Asset / System", "Activity", "Date", "Result", "Witness"], "Add commissioning details")),
+    dashboardSection("Warranties", rowCompletion(manual.warranties, [0, 1, 2, 3], ["Asset ID", "Provider", "Start Date", "Expiry Date"], "Add warranty details"), "warranties"),
+    dashboardSection("Certificates", rowCompletion(manual.certificates, [0, 1, 2, 3], ["Certificate Type", "Reference", "Issued By", "Issue Date"], "Add certificate details"), "certificates"),
+    dashboardSection("Commissioning", rowCompletion(manual.commissioning, [0, 1, 2, 3, 4], ["Asset / System", "Activity", "Date", "Result", "Witness"], "Add commissioning details"), "commissioning"),
     dashboardSection(
       "Spare Parts",
       fieldCompletion([{ label: "Spare parts", value: manual.fields.spareParts }]),
+      "spares",
     ),
-    dashboardSection("As Builts", rowCompletion(manual.asBuilts, [0, 1, 2, 3], ["Drawing / Model", "Revision", "Date", "Location / Reference"], "Add as-built details")),
-    dashboardSection("Documents", rowCompletion(manual.documents, [0, 1, 2], ["Type", "Title", "Reference / Location"], "Add document references")),
+    dashboardSection("As Builts", rowCompletion(manual.asBuilts, [0, 1, 2, 3], ["Drawing / Model", "Revision", "Date", "Location / Reference"], "Add as-built details"), "asBuilts"),
+    dashboardSection("Documents", rowCompletion(manual.documents, [0, 1, 2], ["Type", "Title", "Reference / Location"], "Add document references"), "documents"),
     dashboardSection(
       "Safety",
       fieldCompletion([
         { label: "Safety requirements", value: manual.fields.safetyRequirements },
         { label: "Emergency procedures", value: manual.fields.emergencyProcedures },
       ]),
+      "safety",
     ),
   ];
   return options.includeProject ? [projectDashboardSection(), ...sections] : sections;
@@ -2675,7 +2727,9 @@ function renderDashboard() {
           (section) => `
             <article class="dashboard-card">
               <div class="dashboard-card-head">
-                <h3>${section.label}</h3>
+                <h3>
+                  <button class="dashboard-section-link" data-dashboard-tab="${escapeHtml(section.tab)}" type="button">${escapeHtml(section.label)}</button>
+                </h3>
                 <div class="dashboard-donut ${completionClass(section.percent)}" style="--percent: ${section.percent}">
                   <strong>${section.percent}%</strong>
                 </div>
@@ -2693,6 +2747,14 @@ function renderDashboard() {
         .join("")}
     </div>
   `;
+  target.querySelectorAll(".dashboard-section-link").forEach((button) => {
+    button.addEventListener("click", () => {
+      const tab = document.querySelector(`.tab[data-tab="${button.dataset.dashboardTab}"]`);
+      if (!tab) return;
+      activateTab(tab);
+      document.querySelector(".workspace")?.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  });
 }
 
 function renderEditors() {
@@ -3459,6 +3521,10 @@ document.querySelector("#togglePreview").addEventListener("click", () => {
 });
 
 document.querySelector("#openAdministration").addEventListener("click", () => {
+  if (!userCanManageSettings()) {
+    alert("Only administrators can open Settings.");
+    return;
+  }
   const settingsPanel = document.querySelector('[data-panel="settings"]');
   if (!settingsPanel) return;
   document.body.classList.add("settings-open");
@@ -3669,6 +3735,7 @@ document.querySelector("#loginSubmit").addEventListener("click", async () => {
       }
     }
     currentSupabaseUser = data.user || data.session?.user || null;
+    await fetchCurrentUserRole();
     sessionStorage.setItem(LOGIN_SESSION_KEY, "active");
     setLoginMessage("");
     await showProjectSelectionStep();
@@ -3723,6 +3790,8 @@ document.querySelector("#loginContinueDraft").addEventListener("click", () => {
 document.querySelector("#logoutUser").addEventListener("click", async () => {
   if (currentSupabaseUser && cloudModeAvailable()) await initialiseSupabaseClient().auth.signOut();
   currentSupabaseUser = null;
+  currentUserRole = "editor";
+  applyRolePermissions();
   sessionStorage.removeItem(LOGIN_SESSION_KEY);
   document.body.classList.add("login-locked");
   showLoginCredentialsStep();
@@ -3841,6 +3910,7 @@ try {
   renderPreview();
   updatePreviewToggleButton();
   saveState();
+  applyRolePermissions();
   initialiseLoginGate();
 } catch (error) {
   showAppError(error.message || "The app could not finish loading.");

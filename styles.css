@@ -461,6 +461,22 @@ form {
   font-size: 0.98rem;
 }
 
+.dashboard-section-link {
+  background: transparent;
+  color: var(--accent-dark);
+  font-size: inherit;
+  min-height: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.dashboard-section-link:hover {
+  background: transparent;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .dashboard-card-head strong {
   color: var(--accent-dark);
   font-size: 1.15rem;

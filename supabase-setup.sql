@@ -1,3 +1,66 @@
+create table if not exists public.om_profiles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  email text,
+  role text not null default 'editor' check (role in ('admin', 'editor', 'viewer')),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.om_profiles enable row level security;
+
+create or replace function public.is_om_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.om_profiles
+    where user_id = auth.uid()
+      and role = 'admin'
+  );
+$$;
+
+create or replace function public.handle_new_om_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.om_profiles (user_id, email, role)
+  values (new.id, new.email, 'editor')
+  on conflict (user_id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created_om_profile on auth.users;
+create trigger on_auth_user_created_om_profile
+after insert on auth.users
+for each row execute function public.handle_new_om_user();
+
+drop policy if exists "Users can read their own O&M profile" on public.om_profiles;
+create policy "Users can read their own O&M profile"
+on public.om_profiles
+for select
+to authenticated
+using (auth.uid() = user_id or public.is_om_admin());
+
+drop policy if exists "Admins can update O&M user roles" on public.om_profiles;
+create policy "Admins can update O&M user roles"
+on public.om_profiles
+for update
+to authenticated
+using (public.is_om_admin())
+with check (public.is_om_admin());
+
+insert into public.om_profiles (user_id, email, role)
+select id, email, 'editor'
+from auth.users
+on conflict (user_id) do nothing;
+
 create table if not exists public.om_projects (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade default auth.uid(),
