@@ -3,6 +3,7 @@ const LEGACY_STORAGE_KEY = "om-manual-builder-draft-v1";
 const PROJECT_DATABASE_KEY = "om-manual-builder-project-database-v1";
 const LOGIN_PROFILE_KEY = "om-manual-builder-local-login-v1";
 const LOGIN_SESSION_KEY = "om-manual-builder-login-session-v1";
+const LOGIN_TIME_KEY = "om-manual-builder-login-time-v1";
 const SUPABASE_URL = "https://ixqastmhzqzseokrvsxd.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_IULuuPMBDRN4BmQ-zFscFw_5b7ftrDc";
 const SUPABASE_PROJECTS_TABLE = "om_projects";
@@ -75,6 +76,96 @@ const defaultServiceClassifications = [
   ["FF&E", "Furniture"],
 ];
 
+const reviewSectionConfig = [
+  ["introduction", "Intro & Scope"],
+  ["contacts", "Key Contacts"],
+  ["equipment", "Assets"],
+  ["maintenance", "Maintenance"],
+  ["technical", "Technical Data"],
+  ["warranties", "Warranties"],
+  ["certificates", "Certificates"],
+  ["commissioning", "Commissioning"],
+  ["spares", "Spare Parts"],
+  ["asBuilts", "As Builts"],
+  ["documents", "Documents"],
+  ["safety", "Safety"],
+];
+const roleDisplayNames = {
+  admin: "Admin",
+  reviewer: "Reviewer",
+  editor: "Data Entry",
+  viewer: "Viewer",
+};
+const permissionLabels = [
+  ["read", "Read"],
+  ["edit", "Edit"],
+  ["upload", "Upload"],
+  ["submit", "Submit"],
+  ["review", "Review"],
+  ["generatePdf", "Generate PDF"],
+  ["manageSettings", "Manage Settings"],
+];
+const defaultRolePermissions = {
+  admin: {
+    read: true,
+    edit: true,
+    upload: true,
+    submit: true,
+    review: true,
+    generatePdf: true,
+    manageSettings: true,
+  },
+  reviewer: {
+    read: true,
+    edit: false,
+    upload: false,
+    submit: false,
+    review: true,
+    generatePdf: true,
+    manageSettings: false,
+  },
+  editor: {
+    read: true,
+    edit: true,
+    upload: true,
+    submit: true,
+    review: false,
+    generatePdf: true,
+    manageSettings: false,
+  },
+  viewer: {
+    read: true,
+    edit: false,
+    upload: false,
+    submit: false,
+    review: false,
+    generatePdf: true,
+    manageSettings: false,
+  },
+};
+const reviewDefaults = {
+  originator: "",
+  submittedDate: "",
+  stage: "Draft",
+  firstReviewer: "",
+  firstReviewDate: "",
+  firstReviewStatus: "Pending",
+  secondReviewer: "",
+  secondReviewDate: "",
+  secondReviewStatus: "Pending",
+  finalApprover: "",
+  finalApprovalDate: "",
+  finalStatus: "Pending",
+  notes: "",
+  decisionComment: "",
+  decidedBy: "",
+  decidedAt: "",
+};
+
+function createDefaultReviews() {
+  return Object.fromEntries(reviewSectionConfig.map(([key]) => [key, cloneData(reviewDefaults)]));
+}
+
 const sectionDefaults = {
   fields: {
     introduction: "",
@@ -99,6 +190,7 @@ const sectionDefaults = {
     spares: [],
     safety: [],
   },
+  reviews: createDefaultReviews(),
 };
 
 const defaults = {
@@ -113,6 +205,7 @@ const defaults = {
   },
   siteDetails: [],
   serviceClassifications: cloneData(defaultServiceClassifications),
+  rolePermissions: cloneData(defaultRolePermissions),
   selectedFolder: {
     discipline: "Mechanical",
     trade: "HVAC",
@@ -652,6 +745,11 @@ let supabaseClient = null;
 let currentSupabaseUser = null;
 let currentUserRole = "admin";
 let cloudProjectRecords = [];
+let selectedContactInitial = "all";
+let assetSearchQuery = "";
+let maintenanceSearchQuery = "";
+let documentsSearchQuery = "";
+let currentLoginTime = "";
 
 function cloneData(value) {
   if (typeof structuredClone === "function") return structuredClone(value);
@@ -804,6 +902,16 @@ function mergeSectionData(data = {}) {
   Object.keys(merged.attachments).forEach((key) => {
     merged.attachments[key] = (merged.attachments[key] || []).map((row) => [row[0] || "", row[1] || ""]);
   });
+  merged.reviews = {
+    ...createDefaultReviews(),
+    ...(data.reviews || {}),
+  };
+  reviewSectionConfig.forEach(([key]) => {
+    merged.reviews[key] = {
+      ...cloneData(reviewDefaults),
+      ...(merged.reviews[key] || {}),
+    };
+  });
   return merged;
 }
 
@@ -835,6 +943,7 @@ function migrateLegacyData(parsed) {
   migrated.fields = Object.fromEntries(projectFieldNames.map((name) => [name, parsed.fields?.[name] || ""]));
   migrated.siteDetails = (parsed.siteDetails || []).map(normalizeSiteDetailRow);
   migrated.serviceClassifications = cloneData(defaultServiceClassifications);
+  migrated.rolePermissions = mergeRolePermissions(parsed.rolePermissions);
   migrated.selectedFolder = selectedFolder;
   const sectionData = {
     fields: Object.fromEntries(sectionFieldNames.map((name) => [name, parsed.fields?.[name] || ""])),
@@ -849,6 +958,19 @@ function migrateLegacyData(parsed) {
   };
   migrated.folders[folderKey(selectedFolder)] = { ...selectedFolder, data: mergeSectionData(sectionData) };
   return migrated;
+}
+
+function mergeRolePermissions(source = {}) {
+  const merged = cloneData(defaultRolePermissions);
+  Object.keys(merged).forEach((roleKey) => {
+    const sourceRole = source?.[roleKey] || {};
+    permissionLabels.forEach(([permissionKey]) => {
+      if (typeof sourceRole[permissionKey] === "boolean") {
+        merged[roleKey][permissionKey] = sourceRole[permissionKey];
+      }
+    });
+  });
+  return merged;
 }
 
 function loadState() {
@@ -878,6 +1000,7 @@ function loadState() {
       fields: Object.fromEntries(projectFieldNames.map((name) => [name, parsed.fields?.[name] || ""])),
       siteDetails: (parsed.siteDetails || []).map(normalizeSiteDetailRow),
       serviceClassifications: (parsed.serviceClassifications || defaultServiceClassifications).map(normalizeServiceClassificationRow),
+      rolePermissions: mergeRolePermissions(parsed.rolePermissions),
       selectedFolder: cleanFolder(parsed.selectedFolder || defaults.selectedFolder),
       folders: {},
     };
@@ -953,18 +1076,74 @@ function cloudModeAvailable() {
   return Boolean(initialiseSupabaseClient());
 }
 
+function currentRoleKey() {
+  return state?.rolePermissions?.[currentUserRole] ? currentUserRole : "viewer";
+}
+
+function userHasPermission(permissionKey) {
+  if (!currentSupabaseUser && currentUserRole === "admin") return true;
+  return state?.rolePermissions?.[currentRoleKey()]?.[permissionKey] === true;
+}
+
 function userCanManageSettings() {
-  return !currentSupabaseUser || currentUserRole === "admin";
+  return userHasPermission("manageSettings");
 }
 
 function applyRolePermissions() {
+  const canEdit = userHasPermission("edit");
+  const canUpload = userHasPermission("upload");
+  const canSubmit = userHasPermission("submit");
+  const canReview = userHasPermission("review");
+  const canPrint = userHasPermission("generatePdf");
+  const canManageSettings = userCanManageSettings();
   const settingsButton = document.querySelector("#openAdministration");
   if (settingsButton) {
-    settingsButton.hidden = !userCanManageSettings();
-    settingsButton.disabled = !userCanManageSettings();
-    settingsButton.title = userCanManageSettings() ? "" : "Only administrators can open Settings.";
+    settingsButton.hidden = !canManageSettings;
+    settingsButton.disabled = !canManageSettings;
+    settingsButton.title = canManageSettings ? "" : "Only users with Settings permission can open Settings.";
   }
-  if (!userCanManageSettings() && document.querySelector('[data-panel="settings"]')?.classList.contains("active")) {
+  const printButton = document.querySelector("#printManual");
+  if (printButton) {
+    printButton.disabled = !canPrint;
+    printButton.title = canPrint ? "" : "Your role cannot generate the PDF.";
+  }
+  document.querySelectorAll("[data-role-permission]").forEach((checkbox) => {
+    checkbox.disabled = !canManageSettings || checkbox.dataset.roleKey === "admin";
+  });
+  document.querySelectorAll("#manualForm input, #manualForm textarea, #manualForm select").forEach((control) => {
+    if (control.closest(".role-permissions")) {
+      control.disabled = !canManageSettings || control.dataset.roleKey === "admin";
+      return;
+    }
+    if (control.closest(".review-panel")) {
+      control.disabled = !(canSubmit || canReview);
+      return;
+    }
+    if (control.type === "file" && (control.closest(".attachment-file-list") || control.closest(".section-attachments") || control.previousElementSibling?.classList?.contains("attachment-choose"))) {
+      control.disabled = !canUpload;
+      return;
+    }
+    if (control.id?.includes("QuickSearch")) return;
+    if (control.closest('[data-panel="settings"]')) {
+      control.disabled = !canManageSettings;
+      return;
+    }
+    control.disabled = !canEdit;
+  });
+  document.querySelectorAll(".add-row, #addFolderPath, #updateFolderPath, .remove-row, .site-add, #addSiteDetailPath, .remove-service-classification").forEach((button) => {
+    button.disabled = button.closest('[data-panel="settings"]') ? !canManageSettings : !canEdit;
+  });
+  document.querySelectorAll(".attachment-choose, .section-attachment-add").forEach((button) => {
+    button.disabled = !canUpload;
+    button.title = canUpload ? "" : "Your role cannot upload attachments.";
+  });
+  document.querySelectorAll(".review-submit").forEach((button) => {
+    if (!canSubmit) button.disabled = true;
+  });
+  document.querySelectorAll(".review-approve, .review-reject").forEach((button) => {
+    if (!canReview) button.disabled = true;
+  });
+  if (!canManageSettings && document.querySelector('[data-panel="settings"]')?.classList.contains("active")) {
     const projectTab = document.querySelector('.tab[data-tab="project"]') || document.querySelector(".tab");
     if (projectTab) activateTab(projectTab);
   }
@@ -1115,6 +1294,117 @@ function setLoginMessage(message) {
   if (element) element.textContent = message || "";
 }
 
+function ensureLoginTime() {
+  try {
+    currentLoginTime = sessionStorage.getItem(LOGIN_TIME_KEY) || new Date().toISOString();
+    sessionStorage.setItem(LOGIN_TIME_KEY, currentLoginTime);
+  } catch {
+    currentLoginTime = new Date().toISOString();
+  }
+  return currentLoginTime;
+}
+
+function resetLoginTime() {
+  currentLoginTime = new Date().toISOString();
+  try {
+    sessionStorage.setItem(LOGIN_TIME_KEY, currentLoginTime);
+  } catch {
+    // Session storage can be unavailable in some browser privacy modes.
+  }
+  return currentLoginTime;
+}
+
+function clearLoginTime() {
+  currentLoginTime = "";
+  try {
+    sessionStorage.removeItem(LOGIN_TIME_KEY);
+  } catch {
+    // Session storage can be unavailable in some browser privacy modes.
+  }
+}
+
+function currentUserLabel() {
+  if (currentSupabaseUser) return currentSupabaseUser.email || currentSupabaseUser.id || "Supabase user";
+  const profile = loadLoginProfile();
+  return profile?.username || "Local user";
+}
+
+function roleLabel(role) {
+  return roleDisplayNames[role] || String(role || "editor").replace(/^\w/, (letter) => letter.toUpperCase());
+}
+
+function auditSessionHtml() {
+  let loggedInAt = currentLoginTime;
+  try {
+    loggedInAt = loggedInAt || sessionStorage.getItem(LOGIN_TIME_KEY) || "";
+  } catch {
+    loggedInAt = loggedInAt || "";
+  }
+  const loggedInDate = loggedInAt ? new Date(loggedInAt) : null;
+  const timeText = loggedInDate && !Number.isNaN(loggedInDate.getTime())
+    ? loggedInDate.toLocaleString("en-AU", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      })
+    : "Not recorded";
+  return `
+    <p class="dashboard-audit-note">
+      Current user: ${escapeHtml(currentUserLabel())} | Role: ${escapeHtml(roleLabel(currentUserRole))} | Logged in: ${escapeHtml(timeText)}
+    </p>
+  `;
+}
+
+function renderRolePermissionsMatrix() {
+  const target = document.querySelector("#rolePermissionsMatrix");
+  if (!target) return;
+  if (!state.rolePermissions) state.rolePermissions = mergeRolePermissions();
+  const permissions = mergeRolePermissions(state.rolePermissions);
+  state.rolePermissions = permissions;
+  target.innerHTML = `
+    <table class="role-permissions-table">
+      <thead>
+        <tr>
+          <th>Role</th>
+          ${permissionLabels.map(([, label]) => `<th>${escapeHtml(label)}</th>`).join("")}
+        </tr>
+      </thead>
+      <tbody>
+        ${Object.keys(roleDisplayNames)
+          .map(
+            (roleKey) => `
+              <tr>
+                <th scope="row">
+                  ${escapeHtml(roleDisplayNames[roleKey])}
+                  ${roleKey === "editor" ? "<small>Supabase role: editor</small>" : ""}
+                </th>
+                ${permissionLabels
+                  .map(
+                    ([permissionKey]) => `
+                      <td>
+                        <label class="matrix-check">
+                          <input
+                            type="checkbox"
+                            data-role-permission="${escapeHtml(permissionKey)}"
+                            data-role-key="${escapeHtml(roleKey)}"
+                            ${permissions[roleKey]?.[permissionKey] ? "checked" : ""}
+                            ${roleKey === "admin" ? "disabled" : ""}
+                          />
+                          <span>${permissions[roleKey]?.[permissionKey] ? "Yes" : "No"}</span>
+                        </label>
+                      </td>
+                    `,
+                  )
+                  .join("")}
+              </tr>
+            `,
+          )
+          .join("")}
+      </tbody>
+    </table>
+    <p class="matrix-note">Admin is fixed as full access. Data Entry is stored as the Supabase <strong>editor</strong> role.</p>
+  `;
+}
+
 async function populateLoginProjectSelect() {
   const select = document.querySelector("#loginProjectSelect");
   if (!select) return;
@@ -1185,6 +1475,7 @@ async function initialiseLoginGate() {
     if (currentSupabaseUser) {
       await fetchCurrentUserRole();
       sessionStorage.setItem(LOGIN_SESSION_KEY, "active");
+      ensureLoginTime();
       document.body.classList.add("login-locked");
       await showProjectSelectionStep();
       await renderProjectDatabaseControls("");
@@ -1195,6 +1486,7 @@ async function initialiseLoginGate() {
   if (!client && sessionStorage.getItem(LOGIN_SESSION_KEY) === "active" && profile) {
     currentUserRole = "admin";
     applyRolePermissions();
+    ensureLoginTime();
     unlockApp();
     return;
   }
@@ -1217,6 +1509,8 @@ async function loadProjectRecord(name) {
     ...cloneData(recordData),
     fields: Object.fromEntries(projectFieldNames.map((field) => [field, recordData.fields?.[field] || ""])),
     siteDetails: (recordData.siteDetails || []).map(normalizeSiteDetailRow),
+    serviceClassifications: (recordData.serviceClassifications || defaultServiceClassifications).map(normalizeServiceClassificationRow),
+    rolePermissions: mergeRolePermissions(recordData.rolePermissions),
   };
   renderFolderPicker();
   renderEditors();
@@ -1664,7 +1958,7 @@ function openAttachmentUrl(url) {
 
 function activateTab(tab) {
   if (tab?.dataset?.tab === "settings" && !userCanManageSettings()) {
-    alert("Only administrators can open Settings.");
+    alert("Only users with Settings permission can open Settings.");
     return;
   }
   document.body.classList.remove("settings-open");
@@ -1714,12 +2008,152 @@ function addSectionNavigationButtons() {
   });
 }
 
+function reviewPanelHtml(sectionKey, sectionLabel) {
+  const review = currentManual().reviews?.[sectionKey] || cloneData(reviewDefaults);
+  const canReview = userHasPermission("review");
+  const canSubmit = userHasPermission("submit") && review.stage !== "Submitted" && review.stage !== "Approved";
+  const statusText = review.stage || "Draft";
+  const submittedText = review.submittedDate ? formatDateAu(review.submittedDate) : "Not submitted";
+  const decidedText = review.decidedAt ? formatDateAu(review.decidedAt) : "";
+  return `
+    <div class="review-gate-head">
+      <div>
+        <h3>Review & Approval</h3>
+        <p>${escapeHtml(sectionLabel)} status: <strong>${escapeHtml(statusText)}</strong> | Submitted: ${escapeHtml(submittedText)}</p>
+        ${review.decidedBy ? `<p>Last decision: ${escapeHtml(review.decidedBy)}${decidedText ? ` on ${escapeHtml(decidedText)}` : ""}</p>` : ""}
+      </div>
+      <span class="review-stage-badge">${escapeHtml(statusText)}</span>
+    </div>
+    <textarea class="review-comment" data-review-comment="${escapeHtml(sectionKey)}" rows="2" placeholder="Comments for submit, approve or reject...">${escapeHtml(review.decisionComment || review.notes || "")}</textarea>
+    <div class="review-gate-actions">
+      <button class="secondary review-submit" data-review-action="submit" data-review-section="${escapeHtml(sectionKey)}" type="button" ${canSubmit ? "" : "disabled"}>Submit for Approval</button>
+      <button class="secondary review-approve" data-review-action="approve" data-review-section="${escapeHtml(sectionKey)}" type="button" ${canReview ? "" : "disabled"}>Approve</button>
+      <button class="secondary review-reject" data-review-action="reject" data-review-section="${escapeHtml(sectionKey)}" type="button" ${canReview ? "" : "disabled"}>Reject</button>
+    </div>
+  `;
+}
+
+function renderReviewPanels() {
+  const manual = currentManual();
+  if (!manual.reviews) manual.reviews = createDefaultReviews();
+  reviewSectionConfig.forEach(([sectionKey, sectionLabel]) => {
+    const panel = document.querySelector(`[data-panel="${sectionKey}"]`);
+    if (!panel) return;
+    if (!manual.reviews[sectionKey]) manual.reviews[sectionKey] = cloneData(reviewDefaults);
+    let reviewPanel = panel.querySelector(".review-panel");
+    if (!reviewPanel) {
+      reviewPanel = document.createElement("section");
+      reviewPanel.className = "review-panel";
+      const footer = panel.querySelector(".section-footer");
+      panel.insertBefore(reviewPanel, footer || null);
+    }
+    reviewPanel.innerHTML = reviewPanelHtml(sectionKey, sectionLabel);
+  });
+}
+
+function applyReviewAction(sectionKey, action) {
+  const manual = currentManual();
+  if (!manual.reviews) manual.reviews = createDefaultReviews();
+  if (!manual.reviews[sectionKey]) manual.reviews[sectionKey] = cloneData(reviewDefaults);
+  const review = manual.reviews[sectionKey];
+  const comment = document.querySelector(`[data-review-comment="${sectionKey}"]`)?.value.trim() || "";
+  const today = new Date().toISOString().slice(0, 10);
+  const now = new Date().toISOString();
+  if (action === "submit") {
+    if (!userHasPermission("submit")) return alert("Your role cannot submit sections for approval.");
+    review.stage = "Submitted";
+    review.originator = review.originator || currentUserLabel();
+    review.submittedDate = today;
+    review.decisionComment = comment;
+    review.notes = comment;
+  }
+  if (action === "approve") {
+    if (!userHasPermission("review")) return alert("Your role cannot approve sections.");
+    review.stage = "Approved";
+    review.finalStatus = "Approved";
+    review.finalApprover = currentUserLabel();
+    review.finalApprovalDate = today;
+    review.decidedBy = currentUserLabel();
+    review.decidedAt = now;
+    review.decisionComment = comment;
+    review.notes = comment;
+  }
+  if (action === "reject") {
+    if (!userHasPermission("review")) return alert("Your role cannot reject sections.");
+    review.stage = "Rejected / Revise";
+    review.finalStatus = "Revise";
+    review.decidedBy = currentUserLabel();
+    review.decidedAt = now;
+    review.decisionComment = comment;
+    review.notes = comment;
+  }
+  renderReviewPanels();
+  renderDashboard();
+  persistAndRender();
+}
+
+function contactInitial(row = []) {
+  const source = String(row[0] || row[1] || "").trim();
+  const first = source.charAt(0).toUpperCase();
+  return /^[A-Z]$/.test(first) ? first : "#";
+}
+
+function renderContactsTeledex(rows = []) {
+  const target = document.querySelector("#contactsTeledex");
+  if (!target) return;
+  const available = new Set(rows.map(contactInitial));
+  if (selectedContactInitial !== "all" && !available.has(selectedContactInitial)) selectedContactInitial = "all";
+  const letters = ["all", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ".split(""), "#"];
+  target.innerHTML = letters
+    .map((letter) => {
+      const isAll = letter === "all";
+      const enabled = isAll || available.has(letter);
+      const label = isAll ? "All" : letter;
+      return `<button class="teledex-button${selectedContactInitial === letter ? " active" : ""}" data-contact-initial="${letter}" type="button" ${enabled ? "" : "disabled"}>${label}</button>`;
+    })
+    .join("");
+  target.querySelectorAll(".teledex-button").forEach((button) => {
+    button.addEventListener("click", () => {
+      selectedContactInitial = button.dataset.contactInitial || "all";
+      renderEditors();
+    });
+  });
+}
+
+function assetMatchesSearch(row = []) {
+  const query = assetSearchQuery.trim().toLowerCase();
+  if (!query) return true;
+  return row.some((value) => String(value || "").toLowerCase().includes(query));
+}
+
+function maintenanceMatchesSearch(row = [], descriptions = new Map()) {
+  const query = maintenanceSearchQuery.trim().toLowerCase();
+  if (!query) return true;
+  return [...row, descriptions.get(row[0]) || ""].some((value) => String(value || "").toLowerCase().includes(query));
+}
+
+function documentsMatchesSearch(row = []) {
+  const query = documentsSearchQuery.trim().toLowerCase();
+  if (!query) return true;
+  return row.some((value) => String(value || "").toLowerCase().includes(query));
+}
+
 function createTableRows(listName, rows) {
   const target = document.querySelector(`#${listName}Rows`);
   target.innerHTML = "";
   const descriptions = assetDescriptions();
   const targetData = listName === "siteDetails" ? state.siteDetails : currentManual()[listName];
-  rows.forEach((row, rowIndex) => {
+  const renderedRows =
+    listName === "contacts" && selectedContactInitial !== "all"
+      ? rows.map((row, rowIndex) => ({ row, rowIndex })).filter(({ row }) => contactInitial(row) === selectedContactInitial)
+      : listName === "equipment" && assetSearchQuery.trim()
+      ? rows.map((row, rowIndex) => ({ row, rowIndex })).filter(({ row }) => assetMatchesSearch(row))
+      : listName === "maintenance" && maintenanceSearchQuery.trim()
+      ? rows.map((row, rowIndex) => ({ row, rowIndex })).filter(({ row }) => maintenanceMatchesSearch(row, descriptions))
+      : listName === "documents" && documentsSearchQuery.trim()
+      ? rows.map((row, rowIndex) => ({ row, rowIndex })).filter(({ row }) => documentsMatchesSearch(row))
+      : rows.map((row, rowIndex) => ({ row, rowIndex }));
+  renderedRows.forEach(({ row, rowIndex }) => {
     const tr = document.createElement("tr");
     if (listName === "maintenance" || listName === "warranties") tr.dataset.linkedAssetRow = String(rowIndex);
     listColumns[listName].forEach((column, columnIndex) => {
@@ -2624,7 +3058,11 @@ function dashboardSections(manual = currentManual(), options = {}) {
       "safety",
     ),
   ];
-  return options.includeProject ? [projectDashboardSection(), ...sections] : sections;
+  const withReview = sections.map((section) => ({
+    ...section,
+    reviewStage: manual.reviews?.[section.tab]?.stage || "Draft",
+  }));
+  return options.includeProject ? [projectDashboardSection(), ...withReview] : withReview;
 }
 
 function completionFromSections(sections) {
@@ -2738,6 +3176,7 @@ function renderDashboard() {
                 <span style="width: ${section.percent}%"></span>
               </div>
               <p>${section.percent === 100 ? "Done" : "Outstanding"}</p>
+              <span class="review-stage-badge">${escapeHtml(section.reviewStage || "Draft")}</span>
               <ul>
                 ${section.outstanding.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
               </ul>
@@ -2746,6 +3185,7 @@ function renderDashboard() {
         )
         .join("")}
     </div>
+    ${auditSessionHtml()}
   `;
   target.querySelectorAll(".dashboard-section-link").forEach((button) => {
     button.addEventListener("click", () => {
@@ -2770,7 +3210,16 @@ function renderEditors() {
   });
   renderSiteDetailsTree();
   renderServiceClassificationTable();
+  renderRolePermissionsMatrix();
   renderSectionAttachmentEditors();
+  renderReviewPanels();
+  renderContactsTeledex(manual.contacts);
+  const assetSearch = document.querySelector("#assetQuickSearch");
+  if (assetSearch && assetSearch.value !== assetSearchQuery) assetSearch.value = assetSearchQuery;
+  const maintenanceSearch = document.querySelector("#maintenanceQuickSearch");
+  if (maintenanceSearch && maintenanceSearch.value !== maintenanceSearchQuery) maintenanceSearch.value = maintenanceSearchQuery;
+  const documentsSearch = document.querySelector("#documentsQuickSearch");
+  if (documentsSearch && documentsSearch.value !== documentsSearchQuery) documentsSearch.value = documentsSearchQuery;
   createTableRows("contacts", manual.contacts);
   createTableRows("equipment", manual.equipment);
   createTableRows("maintenance", manual.maintenance);
@@ -2786,6 +3235,7 @@ function renderEditors() {
   renderLinkedAssetDescriptionCells();
   renderProjectImagePreview();
   renderDashboard();
+  applyRolePermissions();
 }
 
 function renderProjectImagePreview() {
@@ -3488,8 +3938,65 @@ function handleNamedFieldInput(field) {
   return true;
 }
 
+function handleReviewFieldInput(field) {
+  const sectionKey = field?.dataset?.reviewSection;
+  const reviewField = field?.dataset?.reviewField;
+  const commentSection = field?.dataset?.reviewComment;
+  if (!sectionKey && !commentSection) return false;
+  const manual = currentManual();
+  if (!manual.reviews) manual.reviews = createDefaultReviews();
+  const key = sectionKey || commentSection;
+  if (!manual.reviews[key]) manual.reviews[key] = cloneData(reviewDefaults);
+  if (reviewField) manual.reviews[key][reviewField] = field.value;
+  else manual.reviews[key].decisionComment = field.value;
+  persistAndRender();
+  return true;
+}
+
+function handleRolePermissionChange(field) {
+  const permissionKey = field?.dataset?.rolePermission;
+  const roleKey = field?.dataset?.roleKey;
+  if (!permissionKey || !roleKey) return false;
+  if (!userCanManageSettings()) {
+    field.checked = state.rolePermissions?.[roleKey]?.[permissionKey] === true;
+    return true;
+  }
+  if (roleKey === "admin") {
+    field.checked = true;
+    return true;
+  }
+  if (!state.rolePermissions) state.rolePermissions = mergeRolePermissions();
+  state.rolePermissions[roleKey][permissionKey] = field.checked;
+  renderRolePermissionsMatrix();
+  persistAndRender();
+  applyRolePermissions();
+  return true;
+}
+
 document.addEventListener("input", (event) => {
+  if (event.target?.id === "assetQuickSearch") {
+    assetSearchQuery = event.target.value;
+    createTableRows("equipment", currentManual().equipment);
+    return;
+  }
+  if (event.target?.id === "maintenanceQuickSearch") {
+    maintenanceSearchQuery = event.target.value;
+    createTableRows("maintenance", currentManual().maintenance);
+    renderLinkedAssetDescriptionCells();
+    return;
+  }
+  if (event.target?.id === "documentsQuickSearch") {
+    documentsSearchQuery = event.target.value;
+    createTableRows("documents", currentManual().documents);
+    return;
+  }
+  if (handleReviewFieldInput(event.target)) return;
   handleNamedFieldInput(event.target);
+});
+
+document.addEventListener("change", (event) => {
+  if (handleRolePermissionChange(event.target)) return;
+  handleReviewFieldInput(event.target);
 });
 
 document.querySelector("#manualForm").addEventListener("submit", (event) => {
@@ -3522,7 +4029,7 @@ document.querySelector("#togglePreview").addEventListener("click", () => {
 
 document.querySelector("#openAdministration").addEventListener("click", () => {
   if (!userCanManageSettings()) {
-    alert("Only administrators can open Settings.");
+    alert("Only users with Settings permission can open Settings.");
     return;
   }
   const settingsPanel = document.querySelector('[data-panel="settings"]');
@@ -3704,6 +4211,12 @@ document.addEventListener("click", (event) => {
   if (event.target.closest("#addSiteDetailPath")) {
     event.preventDefault();
     addSiteDetailPathFromFields();
+    return;
+  }
+  const reviewAction = event.target.closest("[data-review-action]");
+  if (reviewAction) {
+    event.preventDefault();
+    applyReviewAction(reviewAction.dataset.reviewSection, reviewAction.dataset.reviewAction);
   }
 });
 
@@ -3737,6 +4250,7 @@ document.querySelector("#loginSubmit").addEventListener("click", async () => {
     currentSupabaseUser = data.user || data.session?.user || null;
     await fetchCurrentUserRole();
     sessionStorage.setItem(LOGIN_SESSION_KEY, "active");
+    resetLoginTime();
     setLoginMessage("");
     await showProjectSelectionStep();
     return;
@@ -3756,6 +4270,7 @@ document.querySelector("#loginSubmit").addEventListener("click", async () => {
       return;
     }
     sessionStorage.setItem(LOGIN_SESSION_KEY, "active");
+    resetLoginTime();
     await showProjectSelectionStep();
     return;
   }
@@ -3766,6 +4281,7 @@ document.querySelector("#loginSubmit").addEventListener("click", async () => {
     return;
   }
   sessionStorage.setItem(LOGIN_SESSION_KEY, "active");
+  resetLoginTime();
   await showProjectSelectionStep();
 });
 
@@ -3793,6 +4309,7 @@ document.querySelector("#logoutUser").addEventListener("click", async () => {
   currentUserRole = "editor";
   applyRolePermissions();
   sessionStorage.removeItem(LOGIN_SESSION_KEY);
+  clearLoginTime();
   document.body.classList.add("login-locked");
   showLoginCredentialsStep();
 });
@@ -3890,6 +4407,7 @@ document.querySelector("#clearDraft").addEventListener("click", () => {
 });
 
 document.querySelector("#printManual").addEventListener("click", () => {
+  if (!userHasPermission("generatePdf")) return alert("Your role cannot generate the PDF.");
   renderFullManualPreview({
     includeToc: document.querySelector("#includeToc")?.checked !== false,
   });

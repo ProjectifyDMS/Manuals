@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>O&M Manual Builder</title>
-    <link rel="stylesheet" href="styles.css?v=20260517-admin-roles" />
+    <link rel="stylesheet" href="styles.css?v=20260517-role-matrix" />
   </head>
   <body class="login-locked">
     <section class="login-screen" id="loginScreen" aria-label="Login and project selection">
@@ -200,6 +200,11 @@
               </div>
             </div>
             <div class="section-title folder-builder-title">
+              <h2>User Role Matrix</h2>
+              <p>Set what each role can read, edit, upload, submit, review, print, and manage.</p>
+            </div>
+            <div id="rolePermissionsMatrix" class="role-permissions"></div>
+            <div class="section-title folder-builder-title">
               <h2>Manual Folders Structure</h2>
               <p>Add a Discipline, Trade, and Sub-Trade path. Pick a path below to edit the selected folder.</p>
             </div>
@@ -323,6 +328,7 @@
               </div>
               <button class="secondary add-row" data-list="contacts" type="button">Add Contact</button>
             </div>
+            <div id="contactsTeledex" class="teledex" aria-label="Key contacts quick find"></div>
             <div class="table-editor">
               <table>
                 <thead>
@@ -349,6 +355,10 @@
               </div>
               <button class="secondary add-row" data-list="equipment" type="button">Add Asset</button>
             </div>
+            <label class="quick-search">
+              Quick search assets
+              <input id="assetQuickSearch" placeholder="Search asset ID, description, service, location, make, model, supplier..." />
+            </label>
             <div class="table-editor">
               <table>
                 <thead>
@@ -407,6 +417,10 @@
               </div>
               <button class="secondary add-row" data-list="maintenance" type="button">Add Task</button>
             </div>
+            <label class="quick-search">
+              Quick search maintenance
+              <input id="maintenanceQuickSearch" placeholder="Search asset ID, asset description, frequency, unit, routine..." />
+            </label>
             <div class="table-editor">
               <table>
                 <thead>
@@ -569,6 +583,10 @@
               </div>
               <button class="secondary add-row" data-list="documents" type="button">Add Reference</button>
             </div>
+            <label class="quick-search">
+              Quick search documents
+              <input id="documentsQuickSearch" placeholder="Search type, title, reference, notes, attached documents..." />
+            </label>
             <div class="table-editor">
               <table>
                 <thead>
@@ -599,6 +617,6 @@
 
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=20260517-admin-roles"></script>
+    <script src="script.js?v=20260517-role-matrix"></script>
   </body>
 </html>

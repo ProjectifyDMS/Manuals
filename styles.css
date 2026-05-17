@@ -502,12 +502,62 @@ form {
   text-transform: uppercase;
 }
 
+.review-stage-badge {
+  background: #eef6f8;
+  border: 1px solid #c8dce1;
+  border-radius: 999px;
+  color: var(--accent-dark);
+  display: inline-flex;
+  font-size: 0.76rem;
+  font-weight: 800;
+  justify-self: start;
+  padding: 4px 8px;
+}
+
 .dashboard-card ul {
   color: var(--ink);
   display: grid;
   gap: 5px;
   margin: 0;
   padding-left: 18px;
+}
+
+.dashboard-audit-note {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin: 4px 0 0;
+  text-align: right;
+}
+
+.teledex {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.teledex-button {
+  background: #e7eef2;
+  color: var(--ink);
+  font-size: 0.78rem;
+  min-height: 32px;
+  min-width: 34px;
+  padding: 0 9px;
+}
+
+.teledex-button.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.teledex-button:disabled {
+  color: #9aa5af;
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.quick-search {
+  margin-bottom: 14px;
 }
 
 .field-grid {
@@ -895,6 +945,46 @@ textarea {
   padding-top: 16px;
 }
 
+.review-panel {
+  background: #f8fafb;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  margin-top: 22px;
+  padding: 14px;
+}
+
+.review-panel h3 {
+  color: var(--accent-dark);
+  font-size: 1rem;
+  margin: 0 0 4px;
+}
+
+.review-panel p {
+  color: var(--muted);
+  margin: 0;
+}
+
+.review-gate-head {
+  align-items: start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.review-comment {
+  min-height: 64px;
+  width: 100%;
+}
+
+.review-gate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 .section-footer button:disabled {
   background: #d8dee5;
   color: #7a8794;
@@ -976,6 +1066,77 @@ textarea {
 .table-editor td select,
 .table-editor td textarea {
   width: 100%;
+}
+
+.role-permissions {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 22px;
+  overflow-x: auto;
+}
+
+.role-permissions-table {
+  border-collapse: collapse;
+  min-width: 860px;
+  width: 100%;
+}
+
+.role-permissions-table th,
+.role-permissions-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 12px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.role-permissions-table thead th {
+  background: #eef3f5;
+  color: #344150;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+}
+
+.role-permissions-table tbody th {
+  color: #1f2a37;
+  text-align: left;
+  width: 170px;
+}
+
+.role-permissions-table small {
+  color: var(--muted);
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.matrix-check {
+  align-items: center;
+  cursor: pointer;
+  display: inline-flex;
+  gap: 7px;
+  justify-content: center;
+  min-width: 58px;
+}
+
+.matrix-check input {
+  height: 18px;
+  width: 18px;
+}
+
+.matrix-check span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.matrix-note {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin: 0;
+  padding: 12px;
 }
 
 .file-picker {

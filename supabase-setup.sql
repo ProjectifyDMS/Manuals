@@ -1,9 +1,13 @@
 create table if not exists public.om_profiles (
   user_id uuid primary key references auth.users(id) on delete cascade,
   email text,
-  role text not null default 'editor' check (role in ('admin', 'editor', 'viewer')),
+  role text not null default 'editor',
   updated_at timestamptz not null default now()
 );
+
+alter table public.om_profiles drop constraint if exists om_profiles_role_check;
+alter table public.om_profiles
+  add constraint om_profiles_role_check check (role in ('admin', 'reviewer', 'editor', 'viewer'));
 
 alter table public.om_profiles enable row level security;
 
