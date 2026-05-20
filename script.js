@@ -19,16 +19,34 @@ let selectedSiteDetailPath = {
 };
 let selectedServiceClassification = "";
 
-const projectFieldNames = ["projectName", "clientName", "siteAddress", "preparedBy", "revision", "handoverDate", "projectSummary", "projectImage"];
+const projectFieldNames = [
+  "projectName",
+  "manualName",
+  "locationName",
+  "clientName",
+  "siteAddress",
+  "preparedBy",
+  "revision",
+  "handoverDate",
+  "publicationDate",
+  "fmReviewAccepted",
+  "projectSummary",
+  "projectImage",
+];
 const sectionFieldNames = [
   "introduction",
   "scopeOfWorks",
+  "includedWorks",
+  "exclusions",
+  "contractVariations",
   "operatingInstructions",
   "technicalData",
   "commissioningSummary",
   "safetyRequirements",
   "emergencyProcedures",
   "spareParts",
+  "sparePartsStorageLocation",
+  "sparePartsSupplierContacts",
 ];
 
 const assetHeaders = [
@@ -82,9 +100,10 @@ const reviewSectionConfig = [
   ["contacts", "Key Contacts"],
   ["equipment", "Assets"],
   ["maintenance", "Maintenance"],
-  ["technical", "Technical Data"],
+  ["technical", "Operations & Technical Data"],
   ["warranties", "Warranties"],
   ["certificates", "Certificates"],
+  ["compliance", "Compliance"],
   ["commissioning", "Commissioning"],
   ["spares", "Spare Parts"],
   ["asBuilts", "As Builts"],
@@ -101,13 +120,16 @@ const aiHelperSections = {
     fields: [
       ["introduction", "Introduction"],
       ["scopeOfWorks", "Scope of works"],
+      ["includedWorks", "Included works"],
+      ["exclusions", "Exclusions"],
+      ["contractVariations", "Contract variations"],
     ],
   },
   contacts: { label: "Key Contacts", fields: [] },
   equipment: { label: "Assets", fields: [] },
   maintenance: { label: "Maintenance", fields: [] },
   technical: {
-    label: "Technical Data",
+    label: "Operations & Technical Data",
     fields: [
       ["operatingInstructions", "Operating instructions"],
       ["technicalData", "Technical data"],
@@ -115,13 +137,18 @@ const aiHelperSections = {
   },
   warranties: { label: "Warranties", fields: [] },
   certificates: { label: "Certificates", fields: [] },
+  compliance: { label: "Compliance", fields: [] },
   commissioning: {
     label: "Commissioning",
     fields: [["commissioningSummary", "Commissioning summary"]],
   },
   spares: {
     label: "Spare Parts",
-    fields: [["spareParts", "Spare parts"]],
+    fields: [
+      ["spareParts", "Spare parts"],
+      ["sparePartsStorageLocation", "Storage location"],
+      ["sparePartsSupplierContacts", "Supplier contacts"],
+    ],
   },
   asBuilts: { label: "As Builts", fields: [] },
   documents: { label: "Documents", fields: [] },
@@ -213,12 +240,17 @@ const sectionDefaults = {
   fields: {
     introduction: "",
     scopeOfWorks: "",
+    includedWorks: "",
+    exclusions: "",
+    contractVariations: "",
     operatingInstructions: "",
     technicalData: "",
     commissioningSummary: "",
     safetyRequirements: "",
     emergencyProcedures: "",
     spareParts: "",
+    sparePartsStorageLocation: "",
+    sparePartsSupplierContacts: "",
   },
   contacts: [],
   equipment: [],
@@ -226,6 +258,7 @@ const sectionDefaults = {
   commissioning: [],
   warranties: [],
   certificates: [],
+  compliance: [],
   asBuilts: [],
   documents: [],
   attachments: {
@@ -239,20 +272,25 @@ const sectionDefaults = {
 const defaults = {
   fields: {
     projectName: "",
+    manualName: "",
+    locationName: "",
     clientName: "",
     siteAddress: "",
     preparedBy: "",
     revision: "",
     handoverDate: "",
+    publicationDate: "",
+    fmReviewAccepted: "",
     projectImage: "",
   },
   siteDetails: [],
   serviceClassifications: cloneData(defaultServiceClassifications),
+  assetMandatoryFields: [...defaultAssetMandatoryFields],
   rolePermissions: cloneData(defaultRolePermissions),
   selectedFolder: {
-    discipline: "Mechanical",
-    trade: "HVAC",
-    subTrade: "Air Handling Units",
+    discipline: "",
+    trade: "",
+    subTrade: "",
   },
   folders: {},
 };
@@ -265,6 +303,12 @@ const sampleFolderData = {
       "This Operations and Maintenance manual provides the information required to operate, maintain, inspect, and support the installed works after handover.",
     scopeOfWorks:
       "The scope includes the air handling units, associated controls, dampers, variable speed drives, filters, access requirements, maintenance tasks, warranties, commissioning records, certificates, and as-built references.",
+    includedWorks:
+      "Included works comprise installed HVAC plant, controls, associated electrical interfaces, commissioning records, certificates, warranties, maintenance routines, and as-built references.",
+    exclusions:
+      "Excluded works are base building plant outside the North Wing upgrade area and any future tenant fitout works not listed in the asset register.",
+    contractVariations:
+      "Approved variations include additional BMS alarm points and revised filter access provisions included in the final commissioning record.",
     operatingInstructions:
       "Operate the plant through the building management system under the approved time schedule. Use local isolators only for maintenance, emergency shutdown, or authorised testing.",
     technicalData:
@@ -277,6 +321,8 @@ const sampleFolderData = {
       "In an emergency, stop the affected plant from the local isolator or building management system, notify the facility manager, and contact the nominated service contractor before restart.",
     spareParts:
       "AHU filters: 12 sets, size 592 x 592 x 95 mm. Drive belts: 2 sets per fan assembly. Temperature sensors: 4 spare units.",
+    sparePartsStorageLocation: "Level 5 plant room storage cabinet SP-01.",
+    sparePartsSupplierContacts: "Atlas Building Services, +61 2 5550 2000, service@atlas.example.",
   },
   contacts: [
     ["Example Facilities", "Mechanical Services", "100 Sample Street, Sydney NSW", "+61 2 5550 1000", "jordan@example.com", "https://example.com"],
@@ -335,13 +381,14 @@ const sampleFolderData = {
     ],
   ],
   maintenance: [
-    ["AHU-01", "1", "Months", "Inspect filters and replace when pressure drop exceeds limit. Record pressure readings in service log."],
-    ["VSD-01", "3", "Months", "Verify sensors, dampers, and BMS alarms. Calibrate sensors outside tolerance."],
+    ["AHU-01", "1", "Months", "Inspect filters and replace when pressure drop exceeds limit. Record pressure readings in service log.", "Manufacturer Recommended"],
+    ["VSD-01", "3", "Months", "Verify sensors, dampers, and BMS alarms. Calibrate sensors outside tolerance.", "Preventative"],
   ],
   commissioning: [["AHU-01", "Airflow and controls functional test", "2026-04-22", "Passed", "Client witness sheet C-01"]],
   warranties: [["AHU-01", "Airstream", "2026-05-04", "2028-05-03", "Parts and labour subject to quarterly maintenance records.", "AHU warranty certificate.pdf"]],
   certificates: [["Electrical compliance", "EC-2026-041", "Licensed Electrical Contractor", "2026-04-20", "Included in handover pack.", "Electrical compliance certificate.pdf"]],
-  asBuilts: [["Mechanical services as-built drawings", "Rev AB", "2026-04-28", "MS-100 to MS-115", "Final issue for handover."]],
+  compliance: [["AS/NZS 3666", "Air handling hygiene and inspection", "Maintenance routines and commissioning notes reference applicable hygiene inspection requirements.", "Draft"]],
+  asBuilts: [["Mechanical services as-built drawings", "Rev AB", "2026-04-28", "MS-100 to MS-115", "Final issue for handover.", "Concealed ductwork, controls cabling, installed plant locations, and final configuration shown."]],
   documents: [
     ["Drawing", "Mechanical services as-built drawings", "MS-100 to MS-115", "Issued at handover"],
     ["Warranty", "AHU manufacturer warranty", "Appendix W1", "Keep proof of commissioning with warranty file"],
@@ -421,12 +468,17 @@ function buildSampleFolder({ discipline, trade = "", subTrade = "", assets, supp
       fields: {
         introduction: `This section provides the operation and maintenance information for the ${title} scope installed at the sample site.`,
         scopeOfWorks: `The scope includes supply, installation, testing, commissioning, warranty support, spare parts information, safety requirements, and document references for ${title}.`,
+        includedWorks: `Included works cover the installed ${title} assets, associated controls, commissioning evidence, warranty records, maintenance routines, spare parts information, and as-built references.`,
+        exclusions: `Excluded works are any systems outside the ${title} contract scope and any future alterations not recorded in the final asset register.`,
+        contractVariations: `Approved contract variations relevant to ${title} have been incorporated where listed in the final document register.`,
         operatingInstructions: `Operate the ${title} systems in accordance with the installed controls, manufacturer recommendations, and site operating procedures. Isolate equipment before servicing.`,
         technicalData,
         commissioningSummary: `${title} commissioning was completed using functional checks, visual inspection, controls verification, and client witness review where applicable.`,
         safetyRequirements: `Only authorised personnel are to operate or maintain ${title} systems. Follow site induction, isolation procedures, access requirements, and relevant safety data before work starts.`,
         emergencyProcedures: `In an emergency, make the affected ${title} system safe, notify the facility manager, isolate supplies where required, and contact the nominated service provider before restart.`,
         spareParts,
+        sparePartsStorageLocation: "Main Building facilities store unless otherwise noted in the supplier handover documents.",
+        sparePartsSupplierContacts: `${supplier} Pty Ltd, +61 2 5550 2000, service@${slug(supplier)}.example.`,
       },
       contacts: [
         [`${supplier} Pty Ltd`, trade || discipline, "22 Service Road, Sydney NSW", "+61 2 5550 2000", `service@${slug(supplier)}.example`, `https://${slug(supplier)}.example`],
@@ -438,11 +490,13 @@ function buildSampleFolder({ discipline, trade = "", subTrade = "", assets, supp
         index === 0 ? "1" : "6",
         "Months",
         `Inspect ${asset[2].toLowerCase()}, check condition, clean accessible components, confirm operation, and record findings in the maintenance log.`,
+        index === 0 ? "Manufacturer Recommended" : "Preventative",
       ]),
       commissioning: [[primaryAsset[0], `${primaryAsset[2]} functional test`, "2026-04-22", "Passed", "Client witness record"]],
       warranties: [[primaryAsset[0], supplier, "2026-05-04", "2028-05-03", "Warranty subject to scheduled maintenance and correct operation.", `${primaryAsset[0]} warranty.pdf`]],
       certificates: [["Completion certificate", `${slug(discipline).toUpperCase()}-CERT-001`, supplier, "2026-04-24", "Included in sample handover pack.", `${discipline} certificate.pdf`]],
-      asBuilts: [[`${title} as-built drawings`, "Rev AB", "2026-04-28", `${slug(discipline).toUpperCase()}-100 series`, "Final issue for handover."]],
+      compliance: [["Applicable Australian Standards", title, "Confirm statutory and standards evidence is attached for the installed scope.", "Draft"]],
+      asBuilts: [[`${title} as-built drawings`, "Rev AB", "2026-04-28", `${slug(discipline).toUpperCase()}-100 series`, "Final issue for handover.", "Concealed services, installed items, and final configuration identified where applicable."]],
       documents: [
         ["Manual", `${primaryAsset[2]} manufacturer manual`, `${primaryAsset[0]}-MAN-001`, "Supplier operation and maintenance manual."],
         ["Datasheet", `${title} datasheet`, `${slug(discipline).toUpperCase()}-DS-001`, "Product data and technical reference."],
@@ -455,11 +509,15 @@ function buildSampleManualData() {
   const next = cloneData(sampleData);
   next.fields = {
     projectName: "Sample Multi-Discipline O&M Manual",
+    manualName: "Whole of Project O&M Manual",
+    locationName: "Sample Site - Main Building",
     clientName: "Example Facilities Group",
     siteAddress: "100 Sample Street, Sydney NSW",
     preparedBy: "Atlas Building Services",
     revision: "01",
     handoverDate: "2026-05-04",
+    publicationDate: "2026-05-20",
+    fmReviewAccepted: "No",
     projectImage: "assets/sample-project-image.png",
     projectSummary:
       "This sample Operations and Maintenance manual demonstrates a multi-discipline handover pack covering electrical lighting, mechanical HVAC air handling units, wet fire services, hydraulics, and FF&E. It includes representative asset data, contacts, maintenance requirements, commissioning records, warranties, certificates, as-built references, safety information, and document registers for PDF generation testing.",
@@ -614,34 +672,59 @@ const listColumns = {
     "updatedDate",
     "updatedUser",
   ],
-  maintenance: ["assetId", "unit", "frequency", "details", "attachment", "documentUrl"],
+  maintenance: ["assetId", "unit", "frequency", "details", "maintenanceType", "attachment", "documentUrl"],
   commissioning: ["asset", "activity", "date", "result", "signoff", "attachment", "documentUrl"],
   warranties: ["assetId", "provider", "start", "expiry", "conditions", "attachment", "documentUrl"],
   certificates: ["type", "reference", "issuedBy", "issueDate", "notes", "attachment", "documentUrl"],
-  asBuilts: ["drawing", "revision", "date", "location", "notes", "attachment", "documentUrl"],
+  compliance: ["standard", "appliesTo", "evidence", "status", "attachment", "documentUrl"],
+  asBuilts: ["drawing", "revision", "date", "location", "notes", "concealedServices", "attachment", "documentUrl"],
   documents: ["type", "title", "reference", "notes", "attachment", "documentUrl"],
 };
+
+const defaultAssetMandatoryFields = [
+  "assetId",
+  "description",
+  "serviceName",
+  "siteName",
+  "structureName",
+  "levelName",
+  "spaceName",
+  "make",
+  "model",
+  "supplier",
+  "quantity",
+  "retailPrice",
+];
 
 const spreadsheetColumns = {
   project: [
     ["projectName", "Project Name"],
+    ["manualName", "Manual Name"],
+    ["locationName", "Location Name"],
     ["clientName", "Client"],
     ["siteAddress", "Site Address"],
     ["preparedBy", "Prepared By"],
     ["revision", "Manual Revision"],
     ["handoverDate", "Handover Date"],
+    ["publicationDate", "Date of Publication"],
+    ["fmReviewAccepted", "FM / Owner Review Accepted"],
     ["projectSummary", "Project Summary"],
     ["projectImage", "Project Image"],
   ],
   sections: [
     ["introduction", "Introduction"],
     ["scopeOfWorks", "Scope of Works"],
+    ["includedWorks", "Included Works"],
+    ["exclusions", "Exclusions"],
+    ["contractVariations", "Contract Variations"],
     ["operatingInstructions", "Operating Instructions"],
     ["technicalData", "Technical Data"],
     ["commissioningSummary", "Commissioning Summary"],
     ["safetyRequirements", "Safety Requirements"],
     ["emergencyProcedures", "Emergency Procedures"],
     ["spareParts", "Spare Parts"],
+    ["sparePartsStorageLocation", "Spare Parts Storage Location"],
+    ["sparePartsSupplierContacts", "Spare Parts Supplier Contacts"],
   ],
   siteDetails: [
     ["siteName", "Site Name"],
@@ -687,6 +770,7 @@ const spreadsheetColumns = {
     ["unit", "Frequency"],
     ["frequency", "Unit"],
     ["details", "Routine"],
+    ["maintenanceType", "Maintenance Type"],
     ["attachment", "Attached Documents"],
     ["documentUrl", "Document URL"],
   ],
@@ -717,12 +801,21 @@ const spreadsheetColumns = {
     ["attachment", "Attached Documents"],
     ["documentUrl", "Document URL"],
   ],
+  compliance: [
+    ["standard", "Standard / Regulation"],
+    ["appliesTo", "Applies To"],
+    ["evidence", "Evidence / Requirement"],
+    ["status", "Status"],
+    ["attachment", "Attached Documents"],
+    ["documentUrl", "Document URL"],
+  ],
   asBuilts: [
     ["drawing", "Drawing / Model"],
     ["revision", "Revision"],
     ["date", "Date"],
     ["location", "Location / Reference"],
     ["notes", "Notes"],
+    ["concealedServices", "Concealed Services / Configuration Check"],
     ["attachment", "Attached Documents"],
     ["documentUrl", "Document URL"],
   ],
@@ -743,6 +836,7 @@ const spreadsheetSheets = [
   ["Commissioning", "commissioning"],
   ["Warranties", "warranties"],
   ["Certificates", "certificates"],
+  ["Compliance", "compliance"],
   ["As Builts", "asBuilts"],
   ["Documents", "documents"],
 ];
@@ -774,11 +868,12 @@ const editorColumnLabels = {
     "Updated Date",
     "Updated User",
   ],
-  maintenance: ["Asset ID", "Frequency", "Unit", "Routine", "Attached Documents", "Document URL"],
+  maintenance: ["Asset ID", "Frequency", "Unit", "Routine", "Maintenance Type", "Attached Documents", "Document URL"],
   commissioning: ["Asset / System", "Test / Activity", "Date", "Result", "Witness / Sign-off", "Attached Documents", "Document URL"],
   warranties: ["Asset ID", "Provider", "Start", "Expiry", "Conditions / Claim Details", "Attached Documents", "Document URL"],
   certificates: ["Certificate Type", "Reference", "Issued By", "Issue Date", "Notes", "Attached Documents", "Document URL"],
-  asBuilts: ["Drawing / Model", "Revision", "Date", "Location / Reference", "Notes", "Attached Documents", "Document URL"],
+  compliance: ["Standard / Regulation", "Applies To", "Evidence / Requirement", "Status", "Attached Documents", "Document URL"],
+  asBuilts: ["Drawing / Model", "Revision", "Date", "Location / Reference", "Notes", "Concealed Services / Configuration Check", "Attached Documents", "Document URL"],
   documents: ["Type", "Title", "Reference / Location", "Notes", "Attached Documents", "Document URL"],
 };
 
@@ -822,7 +917,7 @@ function folderKey(folder) {
 
 function cleanFolder(folder) {
   return {
-    discipline: String(folder.discipline || "General").trim() || "General",
+    discipline: String(folder.discipline || "").trim(),
     trade: String(folder.trade || "").trim(),
     subTrade: String(folder.subTrade || "").trim(),
   };
@@ -866,6 +961,15 @@ function normalizeMaintenanceRow(row = []) {
     return commonPeriods[unitText.toLowerCase()] || [unitText, frequencyText];
   };
   if (row.length === listColumns.maintenance.length) return pad(row);
+  if (row.length === 6) {
+    const looksLikeLegacySchedule = unitOptions.some((option) => option.toLowerCase() === String(row[4] || "").trim().toLowerCase());
+    if (looksLikeLegacySchedule) {
+      const [assetId, asset, scheduleName, frequency, unit, details] = row;
+      const [normalisedUnit, normalisedFrequency] = normalisePeriod(unit, frequency);
+      return pad([assetId || "", normalisedUnit, normalisedFrequency, details || scheduleName || asset || ""]);
+    }
+    return pad([row[0] || "", row[1] || "", row[2] || "", row[3] || "", "", row[4] || "", row[5] || ""]);
+  }
   if (row.length === 4) {
     const [assetId, unit, frequency, details] = row;
     const [normalisedUnit, normalisedFrequency] = normalisePeriod(unit, frequency);
@@ -884,16 +988,14 @@ function normalizeMaintenanceRow(row = []) {
       [task, responsible, notes].filter(Boolean).join(" - "),
     ]);
   }
-  if (row.length === 6) {
-    const [assetId, asset, scheduleName, frequency, unit, details] = row;
-    const [normalisedUnit, normalisedFrequency] = normalisePeriod(unit, frequency);
-    return pad([assetId || "", normalisedUnit, normalisedFrequency, details || scheduleName || asset || ""]);
-  }
   const [unit, frequency] = normalisePeriod(row[2], row[3]);
-  return pad([row[0] || "", unit, frequency, row[4] || "", row[5] || "", row[6] || ""]);
+  return pad([row[0] || "", unit, frequency, row[4] || "", row[5] || "", row[6] || "", row[7] || ""]);
 }
 
 function normalizeFixedRow(row = [], listName) {
+  if (listName === "asBuilts" && row.length === 7) {
+    return [row[0] || "", row[1] || "", row[2] || "", row[3] || "", row[4] || "", "", row[5] || "", row[6] || ""];
+  }
   return listColumns[listName].map((_, index) => row[index] || "");
 }
 
@@ -938,6 +1040,7 @@ function mergeSectionData(data = {}) {
   merged.commissioning = (merged.commissioning || []).map((row) => normalizeFixedRow(row, "commissioning"));
   merged.warranties = (merged.warranties || []).map((row) => normalizeFixedRow(row, "warranties"));
   merged.certificates = (merged.certificates || []).map((row) => normalizeFixedRow(row, "certificates"));
+  merged.compliance = (merged.compliance || []).map((row) => normalizeFixedRow(row, "compliance"));
   merged.asBuilts = (merged.asBuilts || []).map((row) => normalizeFixedRow(row, "asBuilts"));
   merged.documents = (merged.documents || []).map((row) => normalizeFixedRow(row, "documents"));
   merged.attachments = {
@@ -988,6 +1091,7 @@ function migrateLegacyData(parsed) {
   migrated.fields = Object.fromEntries(projectFieldNames.map((name) => [name, parsed.fields?.[name] || ""]));
   migrated.siteDetails = (parsed.siteDetails || []).map(normalizeSiteDetailRow);
   migrated.serviceClassifications = cloneData(defaultServiceClassifications);
+  migrated.assetMandatoryFields = normalizeAssetMandatoryFields(parsed.assetMandatoryFields);
   migrated.rolePermissions = mergeRolePermissions(parsed.rolePermissions);
   migrated.selectedFolder = selectedFolder;
   const sectionData = {
@@ -998,6 +1102,7 @@ function migrateLegacyData(parsed) {
     commissioning: parsed.commissioning || [],
     warranties: parsed.warranties || [],
     certificates: parsed.certificates || [],
+    compliance: parsed.compliance || [],
     asBuilts: parsed.asBuilts || [],
     documents: parsed.documents || [],
   };
@@ -1016,6 +1121,12 @@ function mergeRolePermissions(source = {}) {
     });
   });
   return merged;
+}
+
+function normalizeAssetMandatoryFields(fields = defaultAssetMandatoryFields) {
+  const allowed = new Set(listColumns.equipment);
+  const selected = Array.isArray(fields) ? fields : defaultAssetMandatoryFields;
+  return [...new Set(selected.filter((field) => allowed.has(field)))];
 }
 
 function loadState() {
@@ -1045,6 +1156,7 @@ function loadState() {
       fields: Object.fromEntries(projectFieldNames.map((name) => [name, parsed.fields?.[name] || ""])),
       siteDetails: (parsed.siteDetails || []).map(normalizeSiteDetailRow),
       serviceClassifications: (parsed.serviceClassifications || defaultServiceClassifications).map(normalizeServiceClassificationRow),
+      assetMandatoryFields: normalizeAssetMandatoryFields(parsed.assetMandatoryFields),
       rolePermissions: mergeRolePermissions(parsed.rolePermissions),
       selectedFolder: cleanFolder(parsed.selectedFolder || defaults.selectedFolder),
       folders: {},
@@ -1624,6 +1736,31 @@ function renderRolePermissionsMatrix() {
   `;
 }
 
+function renderAssetMandatoryFields() {
+  const target = document.querySelector("#assetMandatoryFields");
+  if (!target) return;
+  state.assetMandatoryFields = normalizeAssetMandatoryFields(state.assetMandatoryFields);
+  const selected = new Set(state.assetMandatoryFields);
+  target.innerHTML = `
+    <div class="asset-mandatory-grid">
+      ${editorColumnLabels.equipment
+        .map(
+          ([fieldKey, label]) => `
+            <label class="asset-mandatory-check">
+              <input
+                type="checkbox"
+                data-asset-mandatory-field="${escapeHtml(fieldKey)}"
+                ${selected.has(fieldKey) ? "checked" : ""}
+              />
+              <span>${escapeHtml(label)}</span>
+            </label>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
 async function populateLoginProjectSelect() {
   const select = document.querySelector("#loginProjectSelect");
   if (!select) return;
@@ -1742,6 +1879,7 @@ async function loadProjectRecord(name) {
     fields: Object.fromEntries(projectFieldNames.map((field) => [field, recordData.fields?.[field] || ""])),
     siteDetails: (recordData.siteDetails || []).map(normalizeSiteDetailRow),
     serviceClassifications: (recordData.serviceClassifications || defaultServiceClassifications).map(normalizeServiceClassificationRow),
+    assetMandatoryFields: normalizeAssetMandatoryFields(recordData.assetMandatoryFields),
     rolePermissions: mergeRolePermissions(recordData.rolePermissions),
   };
   renderFolderPicker();
@@ -2013,15 +2151,22 @@ function uniqueFolderValues(items, field) {
   });
 }
 
-function setOptions(select, values, selectedValue) {
+function setOptions(select, values, selectedValue, placeholder = "Select...") {
   select.innerHTML = "";
-  values.forEach((value) => {
+  const optionValues = values.filter((value) => String(value || "").trim());
+  if (!optionValues.length || !String(selectedValue || "").trim()) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = placeholder;
+    select.appendChild(option);
+  }
+  optionValues.forEach((value) => {
     const option = document.createElement("option");
     option.value = value;
-    option.textContent = value || "(blank)";
+    option.textContent = value;
     select.appendChild(option);
   });
-  if (values.includes(selectedValue)) select.value = selectedValue;
+  if (optionValues.includes(selectedValue)) select.value = selectedValue;
 }
 
 function renderFolderPicker() {
@@ -2052,9 +2197,9 @@ function renderFolderPicker() {
     const tradeSelect = document.querySelector(tradeSelector);
     const subTradeSelect = document.querySelector(subTradeSelector);
     if (!disciplineSelect || !tradeSelect || !subTradeSelect) return;
-    setOptions(disciplineSelect, disciplines, state.selectedFolder.discipline);
-    setOptions(tradeSelect, trades, state.selectedFolder.trade);
-    setOptions(subTradeSelect, subTrades, state.selectedFolder.subTrade);
+    setOptions(disciplineSelect, disciplines, state.selectedFolder.discipline, "Example: Electrical");
+    setOptions(tradeSelect, trades, state.selectedFolder.trade, "Example: Lighting");
+    setOptions(subTradeSelect, subTrades, state.selectedFolder.subTrade, "Example: Emergency Lighting");
   });
   syncFolderEditFields();
 }
@@ -2520,8 +2665,11 @@ function createTableRows(listName, rows) {
       if (column === "documentUrl") return;
       const td = document.createElement("td");
       td.dataset.label = editorLabel(listName, columnIndex);
-      if (listName === "equipment" && column === "description") td.className = "wide-description-cell";
-      const longField = ["notes", "task", "details", "conditions", "signoff", "referenceInformation"].includes(column);
+      if (listName === "equipment" && normalizeAssetMandatoryFields(state.assetMandatoryFields).includes(column)) {
+        td.classList.add("mandatory-field-cell");
+      }
+      if (listName === "equipment" && column === "description") td.classList.add("wide-description-cell");
+      const longField = ["notes", "task", "details", "conditions", "signoff", "referenceInformation", "evidence", "concealedServices"].includes(column);
       if (longField || ["description", "locationDescription", "address", "emails", "website"].includes(column)) {
         td.classList.add("editor-wide-field");
       }
@@ -2637,6 +2785,7 @@ function createTableRows(listName, rows) {
           ...options.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`),
         ].join("");
         select.disabled = waitingForParent && !currentValue;
+        select.required = listName === "equipment" && normalizeAssetMandatoryFields(state.assetMandatoryFields).includes(column);
         select.value = currentValue;
         select.addEventListener("change", () => {
           targetData[rowIndex][columnIndex] = select.value;
@@ -2662,6 +2811,7 @@ function createTableRows(listName, rows) {
           ...options.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`),
         ].join("");
         select.disabled = waitingForParent && !currentValue;
+        select.required = listName === "equipment" && normalizeAssetMandatoryFields(state.assetMandatoryFields).includes(column);
         select.value = currentValue;
         select.addEventListener("change", () => {
           targetData[rowIndex][columnIndex] = select.value;
@@ -2691,6 +2841,7 @@ function createTableRows(listName, rows) {
         input.placeholder = "Hours, Days, Months, Years";
       }
       input.value = row[columnIndex] || "";
+      input.required = listName === "equipment" && normalizeAssetMandatoryFields(state.assetMandatoryFields).includes(column);
       if (!input.rows) input.rows = 2;
       input.addEventListener("input", () => {
         targetData[rowIndex][columnIndex] = input.value;
@@ -3316,6 +3467,13 @@ function fieldCompletion(items) {
 }
 
 function rowCompletion(rows, requiredColumns, labels, emptyMessage) {
+  if (!requiredColumns.length) {
+    return {
+      complete: rows.length ? 1 : 0,
+      total: 1,
+      outstanding: rows.length ? [] : [emptyMessage],
+    };
+  }
   if (!rows.length) {
     return {
       complete: 0,
@@ -3342,6 +3500,11 @@ function rowCompletion(rows, requiredColumns, labels, emptyMessage) {
   };
 }
 
+function assetMandatoryColumnIndexes() {
+  const mandatory = normalizeAssetMandatoryFields(state.assetMandatoryFields);
+  return mandatory.map((field) => listColumns.equipment.indexOf(field)).filter((index) => index >= 0);
+}
+
 function dashboardSection(label, completion, tab = "") {
   const percent = Math.round((completion.complete / completion.total) * 100);
   const outstanding = completion.outstanding.length ? completion.outstanding.slice(0, 4) : ["Complete"];
@@ -3366,11 +3529,15 @@ function projectDashboardSection() {
     "Project",
     fieldCompletion([
       { label: "Project name", value: state.fields.projectName },
+      { label: "Manual name", value: state.fields.manualName },
+      { label: "Location name", value: state.fields.locationName },
       { label: "Client", value: state.fields.clientName },
       { label: "Site address", value: state.fields.siteAddress },
       { label: "Prepared by", value: state.fields.preparedBy },
       { label: "Manual revision", value: state.fields.revision },
       { label: "Handover date", value: state.fields.handoverDate },
+      { label: "Date of publication", value: state.fields.publicationDate },
+      { label: "FM / Owner review accepted", value: state.fields.fmReviewAccepted },
       { label: "Project image", value: state.fields.projectImage },
       { label: "Project summary", value: state.fields.projectSummary },
     ]),
@@ -3385,14 +3552,17 @@ function dashboardSections(manual = currentManual(), options = {}) {
       fieldCompletion([
         { label: "Introduction", value: manual.fields.introduction },
         { label: "Scope of works", value: manual.fields.scopeOfWorks },
+        { label: "Included works", value: manual.fields.includedWorks },
+        { label: "Exclusions", value: manual.fields.exclusions },
+        { label: "Contract variations", value: manual.fields.contractVariations },
       ]),
       "introduction",
     ),
     dashboardSection("Key Contacts", rowCompletion(manual.contacts, [0, 1, 2, 3, 4, 5], ["Company Name", "Trade", "Address", "Phone Numbers", "Emails", "Website"], "Add at least one key contact"), "contacts"),
-    dashboardSection("Assets", rowCompletion(manual.equipment, [0, 2, 3, 5, 6, 7, 8, 10, 11, 13, 14, 15], assetHeaders, "Add at least one asset"), "equipment"),
-    dashboardSection("Maintenance", rowCompletion(manual.maintenance, [0, 1, 2, 3], ["Asset ID", "Frequency", "Unit", "Routine"], "Add at least one maintenance task"), "maintenance"),
+    dashboardSection("Assets", rowCompletion(manual.equipment, assetMandatoryColumnIndexes(), assetHeaders, "Add at least one asset"), "equipment"),
+    dashboardSection("Maintenance", rowCompletion(manual.maintenance, [0, 1, 2, 3, 4], ["Asset ID", "Frequency", "Unit", "Routine", "Maintenance Type"], "Add at least one maintenance task"), "maintenance"),
     dashboardSection(
-      "Technical Data",
+      "Operations & Technical Data",
       fieldCompletion([
         { label: "Operating instructions", value: manual.fields.operatingInstructions },
         { label: "Technical data", value: manual.fields.technicalData },
@@ -3401,13 +3571,18 @@ function dashboardSections(manual = currentManual(), options = {}) {
     ),
     dashboardSection("Warranties", rowCompletion(manual.warranties, [0, 1, 2, 3], ["Asset ID", "Provider", "Start Date", "Expiry Date"], "Add warranty details"), "warranties"),
     dashboardSection("Certificates", rowCompletion(manual.certificates, [0, 1, 2, 3], ["Certificate Type", "Reference", "Issued By", "Issue Date"], "Add certificate details"), "certificates"),
+    dashboardSection("Compliance", rowCompletion(manual.compliance, [0, 1, 2, 3], ["Standard / Regulation", "Applies To", "Evidence / Requirement", "Status"], "Add statutory or standards requirements"), "compliance"),
     dashboardSection("Commissioning", rowCompletion(manual.commissioning, [0, 1, 2, 3, 4], ["Asset / System", "Activity", "Date", "Result", "Witness"], "Add commissioning details"), "commissioning"),
     dashboardSection(
       "Spare Parts",
-      fieldCompletion([{ label: "Spare parts", value: manual.fields.spareParts }]),
+      fieldCompletion([
+        { label: "Spare parts", value: manual.fields.spareParts },
+        { label: "Storage location", value: manual.fields.sparePartsStorageLocation },
+        { label: "Supplier contacts", value: manual.fields.sparePartsSupplierContacts },
+      ]),
       "spares",
     ),
-    dashboardSection("As Builts", rowCompletion(manual.asBuilts, [0, 1, 2, 3], ["Drawing / Model", "Revision", "Date", "Location / Reference"], "Add as-built details"), "asBuilts"),
+    dashboardSection("As Builts", rowCompletion(manual.asBuilts, [0, 1, 2, 3, 5], ["Drawing / Model", "Revision", "Date", "Location / Reference", "Notes", "Concealed Services / Configuration Check"], "Add as-built details"), "asBuilts"),
     dashboardSection("Documents", rowCompletion(manual.documents, [0, 1, 2], ["Type", "Title", "Reference / Location"], "Add document references"), "documents"),
     dashboardSection(
       "Safety",
@@ -3460,6 +3635,22 @@ function dashboardTotals() {
   };
 }
 
+function complianceWarnings(manual = currentManual()) {
+  const warnings = [];
+  const assetIds = new Set((manual.equipment || []).map((row) => row[0]).filter(Boolean));
+  const maintenanceAssetIds = new Set((manual.maintenance || []).map((row) => row[0]).filter(Boolean));
+  const warrantyAssetIds = new Set((manual.warranties || []).map((row) => row[0]).filter(Boolean));
+  const assetsWithoutMaintenance = [...assetIds].filter((assetId) => !maintenanceAssetIds.has(assetId));
+  const assetsWithoutWarranty = [...assetIds].filter((assetId) => !warrantyAssetIds.has(assetId));
+  if (!(manual.compliance || []).length) warnings.push("Compliance register has no statutory or Australian Standards entries.");
+  if (assetsWithoutMaintenance.length) warnings.push(`${assetsWithoutMaintenance.length} asset(s) have no linked maintenance routine.`);
+  if (assetsWithoutWarranty.length) warnings.push(`${assetsWithoutWarranty.length} asset(s) have no linked warranty record.`);
+  if (!(manual.certificates || []).length) warnings.push("No certificates recorded for this folder.");
+  if (!(manual.asBuilts || []).length) warnings.push("No as-built drawings or models recorded.");
+  if (!filled(state.fields.fmReviewAccepted)) warnings.push("FM / Owner review acceptance is not recorded on the Project page.");
+  return warnings;
+}
+
 function renderDashboard() {
   const target = document.querySelector("#dashboardContent");
   if (!target) return;
@@ -3468,6 +3659,7 @@ function renderDashboard() {
   const selectedPercent = completionFromSections(sections);
   const overallPercent = completionFromSections(overallDashboardSections());
   const selectedLabel = folderDisplayName(ensureActiveFolder());
+  const warnings = complianceWarnings();
   target.innerHTML = `
     <div class="dashboard-summary-groups">
       <section class="dashboard-summary-group">
@@ -3519,6 +3711,14 @@ function renderDashboard() {
         </div>
       </section>
     </div>
+    <section class="dashboard-warning-panel">
+      <h3>Compliance Checks</h3>
+      ${
+        warnings.length
+          ? `<ul>${warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")}</ul>`
+          : '<p>No key compliance gaps detected for the selected folder.</p>'
+      }
+    </section>
     <div class="dashboard-grid">
       ${sections
         .map(
@@ -3572,6 +3772,7 @@ function renderEditors() {
   renderServiceClassificationTable();
   renderUserManagementPanel();
   renderRolePermissionsMatrix();
+  renderAssetMandatoryFields();
   renderSectionAttachmentEditors();
   renderReviewPanels();
   renderContactsTeledex(manual.contacts);
@@ -3587,6 +3788,7 @@ function renderEditors() {
   createTableRows("commissioning", manual.commissioning);
   createTableRows("warranties", manual.warranties);
   createTableRows("certificates", manual.certificates);
+  createTableRows("compliance", manual.compliance);
   createTableRows("asBuilts", manual.asBuilts);
   createTableRows("documents", manual.documents);
   renderAssetIdDatalist();
@@ -3743,7 +3945,7 @@ function maintenanceScheduleHtml(manual, prefix = "asset") {
     <table>
       <thead>
         <tr>
-          ${["Asset ID", "Description", "Frequency", "Unit", "Routine", "Attached Documents"].map((header) => `<th>${header}</th>`).join("")}
+          ${["Asset ID", "Description", "Frequency", "Unit", "Routine", "Maintenance Type", "Attached Documents"].map((header) => `<th>${header}</th>`).join("")}
         </tr>
       </thead>
       <tbody>
@@ -3759,12 +3961,13 @@ function maintenanceScheduleHtml(manual, prefix = "asset") {
                 <td>${textOrDash(row[1])}</td>
                 <td>${textOrDash(row[2])}</td>
                 <td>${textOrDash(row[3])}</td>
-                <td>${row[4] ? attachmentButton(row[4], {
+                <td>${textOrDash(row[4])}</td>
+                <td>${row[5] ? attachmentButton(row[5], {
                   section: "Maintenance",
                   listName: "maintenance",
                   assetId: row[0] || "",
                   record: descriptions.get(row[0]) || "",
-                  url: row[5] || "",
+                  url: row[6] || "",
                 }) : textOrDash("")}</td>
               </tr>
             `;
@@ -3844,11 +4047,12 @@ function appendicesHtml(manual) {
       ]);
     });
   };
-  pushListRows("Maintenance", "maintenance", 0, [3], 4, 5);
+  pushListRows("Maintenance", "maintenance", 0, [3], 5, 6);
   pushListRows("Commissioning", "commissioning", -1, [0, 1], 5, 6);
   pushListRows("Warranties", "warranties", 0, [1, 4], 5, 6);
   pushListRows("Certificates", "certificates", -1, [0, 1], 5, 6);
-  pushListRows("As Builts", "asBuilts", -1, [0, 1], 5, 6);
+  pushListRows("Compliance", "compliance", -1, [0, 1], 4, 5);
+  pushListRows("As Builts", "asBuilts", -1, [0, 1], 6, 7);
   pushListRows("Documents", "documents", -1, [0, 1], 4, 5);
   Object.entries({
     technical: "Technical Data",
@@ -3905,11 +4109,12 @@ const manualSections = [
   ["toc-introduction", "Introduction"],
   ["toc-key-contacts", "Contacts"],
   ["toc-assets", "Assets"],
-  ["toc-technical-data", "Technical"],
+  ["toc-technical-data", "Operations & Technical"],
   ["toc-maintenance", "Maintenance"],
   ["toc-commissioning", "Commissioning"],
   ["toc-warranties", "Warranties"],
   ["toc-certificates", "Certificates"],
+  ["toc-compliance", "Compliance"],
   ["toc-safety", "Safety"],
   ["toc-emergency", "Emergency"],
   ["toc-spare-parts", "Spares"],
@@ -3963,6 +4168,12 @@ function folderManualHtml(folder) {
         ${paragraph(f.introduction)}
         <h6>Scope of Works</h6>
         ${paragraph(f.scopeOfWorks)}
+        <h6>Included Works</h6>
+        ${paragraph(f.includedWorks)}
+        <h6>Exclusions</h6>
+        ${paragraph(f.exclusions)}
+        <h6>Contract Variations Included</h6>
+        ${paragraph(f.contractVariations)}
 
         ${anchorTarget(sectionAnchor(folder, "toc-key-contacts"))}
         <h5>2. Key Contacts</h5>
@@ -4005,36 +4216,47 @@ function folderManualHtml(folder) {
           section: "Certificates",
         })}
 
+        ${anchorTarget(sectionAnchor(folder, "toc-compliance"))}
+        <h5>9. Compliance Register</h5>
+        ${tableHtml(["Standard / Regulation", "Applies To", "Evidence / Requirement", "Status", "Attached Documents"], folder.data.compliance, {
+          listName: "compliance",
+          section: "Compliance",
+        })}
+
         ${anchorTarget(sectionAnchor(folder, "toc-safety"))}
-        <h5>9. Safety Requirements</h5>
+        <h5>10. Safety Requirements</h5>
         ${paragraph(f.safetyRequirements)}
         ${sectionAttachmentsHtml(folder.data, "safety")}
 
         ${anchorTarget(sectionAnchor(folder, "toc-emergency"))}
-        <h5>10. Emergency Procedures</h5>
+        <h5>11. Emergency Procedures</h5>
         ${paragraph(f.emergencyProcedures)}
 
         ${anchorTarget(sectionAnchor(folder, "toc-spare-parts"))}
-        <h5>11. Spare Parts</h5>
+        <h5>12. Spare Parts</h5>
         ${paragraph(f.spareParts)}
+        <h6>Storage Location</h6>
+        ${paragraph(f.sparePartsStorageLocation)}
+        <h6>Supplier Contacts</h6>
+        ${paragraph(f.sparePartsSupplierContacts)}
         ${sectionAttachmentsHtml(folder.data, "spares")}
 
         ${anchorTarget(sectionAnchor(folder, "toc-as-builts"))}
-        <h5>12. As Builts</h5>
-        ${tableHtml(["Drawing / Model", "Revision", "Date", "Location / Reference", "Notes", "Attached Documents"], folder.data.asBuilts, {
+        <h5>13. As Builts</h5>
+        ${tableHtml(["Drawing / Model", "Revision", "Date", "Location / Reference", "Notes", "Concealed Services / Configuration Check", "Attached Documents"], folder.data.asBuilts, {
           listName: "asBuilts",
           section: "As Builts",
         })}
 
         ${anchorTarget(sectionAnchor(folder, "toc-documents"))}
-        <h5>13. Documents and References</h5>
+        <h5>14. Documents and References</h5>
         ${tableHtml(["Type", "Title", "Reference / Location", "Notes", "Attached Documents"], folder.data.documents, {
           listName: "documents",
           section: "Documents",
         })}
 
         ${anchorTarget(sectionAnchor(folder, "toc-appendices"))}
-        <h5>14. Appendices</h5>
+        <h5>15. Appendices</h5>
         ${appendicesHtml(folder.data)}
       </div>
     </section>
@@ -4066,14 +4288,19 @@ function manualCoverHtml(detail = {}) {
         <div>
           <p class="eyebrow">Operations and Maintenance Manual</p>
           <h1>${textOrDash(state.fields.projectName)}</h1>
+          <p>${textOrDash(state.fields.manualName)}</p>
         </div>
       </div>
       <div class="meta-grid">
+        <div class="meta-item"><span class="label">Manual name</span>${textOrDash(state.fields.manualName)}</div>
+        <div class="meta-item"><span class="label">Location name</span>${textOrDash(state.fields.locationName)}</div>
         <div class="meta-item"><span class="label">Client</span>${textOrDash(state.fields.clientName)}</div>
         <div class="meta-item"><span class="label">Site</span>${textOrDash(state.fields.siteAddress)}</div>
         <div class="meta-item"><span class="label">Prepared by</span>${textOrDash(state.fields.preparedBy)}</div>
         <div class="meta-item"><span class="label">Revision</span>${textOrDash(state.fields.revision)}</div>
-        <div class="meta-item"><span class="label">Handover date</span>${textOrDash(state.fields.handoverDate)}</div>
+        <div class="meta-item"><span class="label">Handover date</span>${textOrDash(formatDateAu(state.fields.handoverDate))}</div>
+        <div class="meta-item"><span class="label">Date of publication</span>${textOrDash(formatDateAu(state.fields.publicationDate))}</div>
+        <div class="meta-item"><span class="label">FM / Owner review</span>${textOrDash(state.fields.fmReviewAccepted)}</div>
         <div class="meta-item"><span class="label">Generated</span>${new Date().toLocaleDateString("en-AU", {
           day: "2-digit",
           month: "2-digit",
@@ -4334,6 +4561,23 @@ function handleRolePermissionChange(field) {
   return true;
 }
 
+function handleAssetMandatoryFieldChange(field) {
+  const fieldKey = field?.dataset?.assetMandatoryField;
+  if (!fieldKey) return false;
+  if (!userCanManageSettings()) {
+    field.checked = normalizeAssetMandatoryFields(state.assetMandatoryFields).includes(fieldKey);
+    return true;
+  }
+  const selected = new Set(normalizeAssetMandatoryFields(state.assetMandatoryFields));
+  if (field.checked) selected.add(fieldKey);
+  else selected.delete(fieldKey);
+  state.assetMandatoryFields = listColumns.equipment.filter((column) => selected.has(column));
+  createTableRows("equipment", currentManual().equipment);
+  renderAssetMandatoryFields();
+  persistAndRender();
+  return true;
+}
+
 function handleManagedUserRoleChange(field) {
   const userId = field?.dataset?.managedUserRole;
   if (!userId) return false;
@@ -4372,6 +4616,7 @@ document.addEventListener("input", (event) => {
 document.addEventListener("change", (event) => {
   if (handleManagedUserNameChange(event.target)) return;
   if (handleManagedUserRoleChange(event.target)) return;
+  if (handleAssetMandatoryFieldChange(event.target)) return;
   if (handleRolePermissionChange(event.target)) return;
   handleReviewFieldInput(event.target);
 });

@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>O&M Manual Builder</title>
-    <link rel="stylesheet" href="styles.css?v=20260520-ai-helper" />
+    <link rel="stylesheet" href="styles.css?v=20260520-asset-mandatory-fields" />
   </head>
   <body class="login-locked">
     <section class="login-screen" id="loginScreen" aria-label="Login and project selection">
@@ -104,9 +104,10 @@
           <button class="tab" data-tab="contacts" type="button">Key Contacts</button>
           <button class="tab" data-tab="equipment" type="button">Assets</button>
           <button class="tab" data-tab="maintenance" type="button">Maintenance</button>
-          <button class="tab" data-tab="technical" type="button">Technical Data</button>
+          <button class="tab" data-tab="technical" type="button">Operations & Technical Data</button>
           <button class="tab" data-tab="warranties" type="button">Warranties</button>
           <button class="tab" data-tab="certificates" type="button">Certificates</button>
+          <button class="tab" data-tab="compliance" type="button">Compliance</button>
           <button class="tab" data-tab="commissioning" type="button">Commissioning</button>
           <button class="tab" data-tab="spares" type="button">Spare Parts</button>
           <button class="tab" data-tab="asBuilts" type="button">As Builts</button>
@@ -149,6 +150,14 @@
                 <input name="projectName" placeholder="Example: North Wing HVAC Upgrade" />
               </label>
               <label>
+                Manual name
+                <input name="manualName" placeholder="Example: Mechanical Services O&M Manual" />
+              </label>
+              <label>
+                Location name
+                <input name="locationName" placeholder="Example: Main Building" />
+              </label>
+              <label>
                 Client
                 <input name="clientName" placeholder="Client or asset owner" />
               </label>
@@ -167,6 +176,19 @@
               <label>
                 Handover date
                 <input name="handoverDate" type="date" />
+              </label>
+              <label>
+                Date of publication
+                <input name="publicationDate" type="date" />
+              </label>
+              <label>
+                FM / Owner review accepted
+                <select name="fmReviewAccepted">
+                  <option value="">Select...</option>
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                  <option value="Not required">Not required</option>
+                </select>
               </label>
             </div>
             <div class="project-image-field">
@@ -263,6 +285,11 @@
               <button class="secondary" id="updateFolderPath" type="button">Update Selected Path</button>
             </section>
             <div class="section-title folder-builder-title">
+              <h2>Asset Register Mandatory Fields</h2>
+              <p>Select which Asset Register fields must be completed for dashboard completion.</p>
+            </div>
+            <div id="assetMandatoryFields" class="asset-mandatory-fields"></div>
+            <div class="section-title folder-builder-title">
               <h2>Service Classification Register</h2>
               <p>Manage industry-standard Service Name and Sub Service values used by the asset register.</p>
             </div>
@@ -327,6 +354,18 @@
             <label class="wide">
               Scope of works
               <textarea name="scopeOfWorks" rows="6" placeholder="List included assets, services, areas, documents, and exclusions."></textarea>
+            </label>
+            <label class="wide">
+              Included works
+              <textarea name="includedWorks" rows="4" placeholder="List the works, systems, areas, and assets included in this manual."></textarea>
+            </label>
+            <label class="wide">
+              Exclusions
+              <textarea name="exclusions" rows="4" placeholder="List excluded works, systems, areas, or documents."></textarea>
+            </label>
+            <label class="wide">
+              Contract variations included
+              <textarea name="contractVariations" rows="4" placeholder="List contract variations included in this manual."></textarea>
             </label>
           </section>
 
@@ -439,6 +478,7 @@
                     <th>Frequency</th>
                     <th>Unit</th>
                     <th>Routine</th>
+                    <th>Maintenance Type</th>
                     <th>Attached Documents</th>
                     <th></th>
                   </tr>
@@ -531,6 +571,31 @@
             </div>
           </section>
 
+          <section class="panel" data-panel="compliance">
+            <div class="section-title with-action">
+              <div>
+                <h2>Compliance Register</h2>
+                <p>Australian Standards, statutory requirements, evidence, and status for this manual folder.</p>
+              </div>
+              <button class="secondary add-row" data-list="compliance" type="button">Add Compliance Item</button>
+            </div>
+            <div class="table-editor">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Standard / Regulation</th>
+                    <th>Applies To</th>
+                    <th>Evidence / Requirement</th>
+                    <th>Status</th>
+                    <th>Attached Documents</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="complianceRows"></tbody>
+              </table>
+            </div>
+          </section>
+
           <section class="panel" data-panel="safety">
             <div class="section-title">
               <h2>Safety and Emergency</h2>
@@ -556,6 +621,14 @@
               Recommended spare parts
               <textarea name="spareParts" rows="8" placeholder="List part numbers, quantities, supplier, lead time, and replacement notes."></textarea>
             </label>
+            <label class="wide">
+              Storage location
+              <textarea name="sparePartsStorageLocation" rows="3" placeholder="List storage room, cabinet, shelf, site, or handover storage location."></textarea>
+            </label>
+            <label class="wide">
+              Supplier contacts
+              <textarea name="sparePartsSupplierContacts" rows="3" placeholder="List major spare part suppliers and contact details."></textarea>
+            </label>
             <div class="section-attachments" data-section-attachments="spares"></div>
           </section>
 
@@ -576,6 +649,7 @@
                     <th>Date</th>
                     <th>Location / Reference</th>
                     <th>Notes</th>
+                    <th>Concealed Services / Configuration Check</th>
                     <th>Attached Documents</th>
                     <th></th>
                   </tr>
@@ -627,6 +701,6 @@
 
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=20260520-ai-helper"></script>
+    <script src="script.js?v=20260520-asset-mandatory-fields"></script>
   </body>
 </html>
