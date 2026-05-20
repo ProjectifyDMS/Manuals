@@ -1311,7 +1311,7 @@ function applyRolePermissions() {
     button.disabled = !canEdit;
     button.title = canEdit ? "" : "Your role cannot edit section content.";
   });
-  document.querySelectorAll("[data-asset-mandatory-field], [data-asset-mandatory-preset]").forEach((control) => {
+  document.querySelectorAll("[data-asset-mandatory-toggle], [data-asset-mandatory-field], [data-asset-mandatory-preset]").forEach((control) => {
     control.disabled = false;
     control.title = "";
   });
@@ -1751,14 +1751,14 @@ function renderAssetMandatoryFields() {
       ${editorColumnLabels.equipment
         .map(
           ([fieldKey, label]) => `
-            <label class="asset-mandatory-check">
-              <input
-                type="checkbox"
-                data-asset-mandatory-field="${escapeHtml(fieldKey)}"
-                ${selected.has(fieldKey) ? "checked" : ""}
-              />
-              <span>${escapeHtml(label)}</span>
-            </label>
+            <button
+              class="asset-mandatory-toggle ${selected.has(fieldKey) ? "selected" : ""}"
+              data-asset-mandatory-toggle="${escapeHtml(fieldKey)}"
+              type="button"
+              aria-pressed="${selected.has(fieldKey) ? "true" : "false"}"
+            >
+              ${escapeHtml(label)}
+            </button>
           `,
         )
         .join("")}
@@ -1781,7 +1781,7 @@ async function populateLoginProjectSelect() {
       `<option value="">${records.length ? "Select saved project..." : "No saved projects yet"}</option>`,
       ...records.map((record) => `<option value="${escapeHtml(cloudProjectOptionValue(record))}">${escapeHtml(record.name)}</option>`),
     ].join("");
-    if (openButton) openButton.disabled = !records.length;
+    if (openButton) openButton.disabled = !select.value;
     return;
   }
   const names = Object.keys(loadProjectDatabase()).sort();
@@ -1789,7 +1789,7 @@ async function populateLoginProjectSelect() {
     `<option value="">${names.length ? "Select saved project..." : "No saved projects yet"}</option>`,
     ...names.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`),
   ].join("");
-  if (openButton) openButton.disabled = !names.length;
+  if (openButton) openButton.disabled = !select.value;
 }
 
 function showLoginCredentialsStep() {
@@ -1877,11 +1877,18 @@ async function loadProjectRecord(name) {
   let record = null;
   if (currentSupabaseUser && cloudModeAvailable()) {
     const id = String(name || "").startsWith("cloud:") ? String(name).slice(6) : "";
+    if (!cloudProjectRecords.some((item) => item.id === id || item.name === name)) {
+      await refreshCloudProjectRecords();
+    }
     record = cloudProjectRecords.find((item) => item.id === id || item.name === name);
   } else {
     record = loadProjectDatabase()[name];
   }
-  if (!record) return;
+  if (!record) {
+    alert("That saved project could not be found. Try selecting it again, or create a new project.");
+    await populateLoginProjectSelect();
+    return false;
+  }
   const recordData = record.data || {};
   state = {
     ...cloneData(defaults),
@@ -1896,6 +1903,7 @@ async function loadProjectRecord(name) {
   renderEditors();
   persistAndRender();
   await renderProjectDatabaseControls(record.name || name);
+  return true;
 }
 
 function markSaving() {
@@ -4594,8 +4602,21 @@ function handleAssetMandatoryFieldChange(field) {
   return true;
 }
 
+function handleAssetMandatoryToggle(button) {
+  const fieldKey = button?.closest?.("[data-asset-mandatory-toggle]")?.dataset?.assetMandatoryToggle;
+  if (!fieldKey) return false;
+  const selected = new Set(normalizeAssetMandatoryFields(state.assetMandatoryFields));
+  if (selected.has(fieldKey)) selected.delete(fieldKey);
+  else selected.add(fieldKey);
+  state.assetMandatoryFields = listColumns.equipment.filter((column) => selected.has(column));
+  renderAssetMandatoryFields();
+  createTableRows("equipment", currentManual().equipment);
+  persistAndRender();
+  return true;
+}
+
 function handleAssetMandatoryPreset(button) {
-  const preset = button?.dataset?.assetMandatoryPreset;
+  const preset = button?.closest?.("[data-asset-mandatory-preset]")?.dataset?.assetMandatoryPreset;
   if (!preset) return false;
   if (preset === "all") state.assetMandatoryFields = [...listColumns.equipment];
   else if (preset === "none") state.assetMandatoryFields = [];
@@ -4650,6 +4671,7 @@ document.addEventListener("change", (event) => {
 });
 
 document.addEventListener("click", (event) => {
+  if (handleAssetMandatoryToggle(event.target)) return;
   if (handleAssetMandatoryPreset(event.target)) return;
 });
 
@@ -4963,8 +4985,13 @@ document.querySelector("#loginOpenProject").addEventListener("click", async () =
     alert("Select a saved project first.");
     return;
   }
-  await loadProjectRecord(name);
-  unlockApp();
+  const opened = await loadProjectRecord(name);
+  if (opened) unlockApp();
+});
+
+document.querySelector("#loginProjectSelect").addEventListener("change", (event) => {
+  const openButton = document.querySelector("#loginOpenProject");
+  if (openButton) openButton.disabled = !event.target.value;
 });
 
 document.querySelector("#loginNewProject").addEventListener("click", async () => {
