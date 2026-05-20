@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>O&M Manual Builder</title>
-    <link rel="stylesheet" href="styles.css?v=20260520-login-project-open-fix" />
+    <link rel="stylesheet" href="styles.css?v=20260520-vbis-field-names" />
   </head>
   <body class="login-locked">
     <section class="login-screen" id="loginScreen" aria-label="Login and project selection">
@@ -291,7 +291,7 @@
             <div id="assetMandatoryFields" class="asset-mandatory-fields"></div>
             <div class="section-title folder-builder-title">
               <h2>Service Classification Register</h2>
-              <p>Manage industry-standard Service Name and Sub Service values used by the asset register.</p>
+              <p>Manage VBIS-style Discipline, Product, Sub-Type, and Sub-Sub Type values used by the asset register.</p>
             </div>
             <div class="service-classification-builder">
               <div id="serviceClassificationTable" class="service-classification-table"></div>
@@ -415,8 +415,11 @@
                     <th>Asset ID</th>
                     <th>Parent Asset ID</th>
                     <th>Description</th>
-                    <th>Service Name</th>
-                    <th>Subservice</th>
+                    <th>Discipline Name</th>
+                    <th>Product Name</th>
+                    <th>Sub-Type Name</th>
+                    <th>Sub-Sub Type Name</th>
+                    <th>VBIS Code</th>
                     <th>Site Name</th>
                     <th>Structure Name</th>
                     <th>Level Name</th>
@@ -701,6 +704,6 @@
 
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=20260520-login-project-open-fix"></script>
+    <script src="script.js?v=20260520-vbis-field-names"></script>
   </body>
 </html>

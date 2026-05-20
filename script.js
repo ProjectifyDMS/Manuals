@@ -18,6 +18,8 @@ let selectedSiteDetailPath = {
   space: "",
 };
 let selectedServiceClassification = "";
+let selectedServiceProduct = "";
+let selectedServiceSubType = "";
 
 const projectFieldNames = [
   "projectName",
@@ -53,8 +55,10 @@ const assetHeaders = [
   "Asset ID",
   "Parent Asset ID",
   "Description",
-  "Service Name",
-  "Subservice",
+  "Discipline Name",
+  "Product Name",
+  "Sub-Type Name",
+  "Sub-Sub Type Name",
   "Site Name",
   "Structure Name",
   "Level Name",
@@ -77,22 +81,27 @@ const assetHeaders = [
 const unitOptions = ["Hours", "Days", "Months", "Years"];
 
 const defaultServiceClassifications = [
-  ["Electrical Services", "Lighting"],
-  ["Electrical Services", "Emergency Lighting"],
-  ["Electrical Services", "General Power"],
-  ["Electrical Services", "Switchboards"],
-  ["Mechanical Services", "Air Handling"],
-  ["Mechanical Services", "Ventilation"],
-  ["Mechanical Services", "Controls"],
-  ["Fire Protection Services", "Wet Fire"],
-  ["Fire Protection Services", "Dry Fire"],
-  ["Hydraulic Services", "Domestic Cold Water"],
-  ["Hydraulic Services", "Domestic Hot Water"],
-  ["Hydraulic Services", "Sanitary Plumbing"],
-  ["Security Services", "Access Control"],
-  ["Communications Services", "Structured Cabling"],
-  ["Vertical Transport", "Lifts"],
-  ["FF&E", "Furniture"],
+  ["EL", "Electrical Services", "EL-Ltg", "Lighting", "", "", "", ""],
+  ["EL", "Electrical Services", "EL-EmL", "Emergency Lighting", "", "", "", ""],
+  ["EL", "Electrical Services", "EL-Pwr", "General Power", "", "", "", ""],
+  ["EL", "Electrical Services", "EL-Swb", "Switchboards", "", "", "", ""],
+  ["ME", "Mechanical Services", "ME-AHU", "Air Handling", "", "", "", ""],
+  ["ME", "Mechanical Services", "ME-Ven", "Ventilation", "", "", "", ""],
+  ["ME", "Mechanical Services", "ME-Ctl", "Controls", "", "", "", ""],
+  ["FP", "Fire Protection Services", "FP-Wet", "Wet Fire", "", "", "", ""],
+  ["FP", "Fire Protection Services", "FP-Dry", "Dry Fire", "", "", "", ""],
+  ["HY", "Hydraulic Services", "HY-DCW", "Domestic Cold Water", "", "", "", ""],
+  ["HY", "Hydraulic Services", "HY-DHW", "Domestic Hot Water", "", "", "", ""],
+  ["HY", "Hydraulic Services", "HY-San", "Sanitary Plumbing", "", "", "", ""],
+  ["SE", "Security Services", "SE-Acc", "Access Control", "", "", "", ""],
+  ["CM", "Communications Services", "CM-Cab", "Structured Cabling", "", "", "", ""],
+  ["VT", "Vertical Transport", "VT-Lft", "Lifts", "", "", "", ""],
+  ["FF", "FF&E", "FF-Fur", "Furniture", "", "", "", ""],
+  ["AC", "Acoustics", "AC-Doc", "Documents", "AC-Doc-Co", "Contract", "AC-Doc-Co-At", "Attachment"],
+  ["AC", "Acoustics", "AC-Doc", "Documents", "AC-Doc-Co", "Contract", "AC-Doc-Co-Co", "Conditions"],
+  ["AC", "Acoustics", "AC-Doc", "Documents", "AC-Doc-Co", "Contract", "AC-Doc-Co-EOI", "Expression of Interest"],
+  ["AC", "Acoustics", "AC-Doc", "Documents", "AC-Doc-Co", "Contract", "AC-Doc-Co-LOI", "Letter of Intent"],
+  ["AC", "Acoustics", "AC-Doc", "Documents", "AC-Doc-Co", "Contract", "AC-Doc-Co-LOO", "Letter of Offer"],
 ];
 
 const reviewSectionConfig = [
@@ -686,6 +695,8 @@ const listColumns = {
     "referenceInformation",
     "updatedDate",
     "updatedUser",
+    "subType",
+    "subSubType",
   ],
   maintenance: ["assetId", "unit", "frequency", "details", "maintenanceType", "attachment", "documentUrl"],
   commissioning: ["asset", "activity", "date", "result", "signoff", "attachment", "documentUrl"],
@@ -695,6 +706,33 @@ const listColumns = {
   asBuilts: ["drawing", "revision", "date", "location", "notes", "concealedServices", "attachment", "documentUrl"],
   documents: ["type", "title", "reference", "notes", "attachment", "documentUrl"],
 };
+
+const equipmentEditorColumns = [
+  "assetId",
+  "parentAssetId",
+  "description",
+  "serviceName",
+  "subservice",
+  "subType",
+  "subSubType",
+  "siteName",
+  "structureName",
+  "levelName",
+  "spaceName",
+  "locationDescription",
+  "make",
+  "model",
+  "serialNumber",
+  "supplier",
+  "quantity",
+  "retailPrice",
+  "installDate",
+  "warrantyExpiryDate",
+  "lifeExpectancyYears",
+  "referenceInformation",
+  "updatedDate",
+  "updatedUser",
+];
 
 const spreadsheetColumns = {
   project: [
@@ -745,8 +783,8 @@ const spreadsheetColumns = {
     ["assetId", "Asset ID"],
     ["parentAssetId", "Parent Asset ID"],
     ["description", "Description"],
-    ["serviceName", "Service Name"],
-    ["subservice", "Subservice"],
+    ["serviceName", "Discipline Name"],
+    ["subservice", "Product Name"],
     ["siteName", "Site Name"],
     ["structureName", "Structure Name"],
     ["levelName", "Level Name"],
@@ -764,6 +802,8 @@ const spreadsheetColumns = {
     ["referenceInformation", "Reference Information"],
     ["updatedDate", "Updated Date"],
     ["updatedUser", "Updated User"],
+    ["subType", "Sub-Type Name"],
+    ["subSubType", "Sub-Sub Type Name"],
   ],
   maintenance: [
     ["assetId", "Asset ID"],
@@ -848,8 +888,8 @@ const editorColumnLabels = {
     "Asset ID",
     "Parent Asset ID",
     "Description",
-    "Service Name",
-    "Subservice",
+    "Discipline Name",
+    "Product Name",
     "Site Name",
     "Structure Name",
     "Level Name",
@@ -867,6 +907,8 @@ const editorColumnLabels = {
     "Reference Information",
     "Updated Date",
     "Updated User",
+    "Sub-Type Name",
+    "Sub-Sub Type Name",
   ],
   maintenance: ["Asset ID", "Frequency", "Unit", "Routine", "Maintenance Type", "Attached Documents", "Document URL"],
   commissioning: ["Asset / System", "Test / Activity", "Date", "Result", "Witness / Sign-off", "Attached Documents", "Document URL"],
@@ -1022,7 +1064,8 @@ function normalizeSiteDetailRow(row = []) {
 }
 
 function normalizeServiceClassificationRow(row = []) {
-  return [row[0] || "", row[1] || ""];
+  if (row.length <= 2) return ["", row[0] || "", "", row[1] || "", "", "", "", ""];
+  return Array.from({ length: 8 }, (_, index) => row[index] || "");
 }
 
 function mergeSectionData(data = {}) {
@@ -2077,7 +2120,7 @@ function siteDetailValues(columnIndex) {
 }
 
 function serviceNameValues() {
-  return [...new Set((state.serviceClassifications || []).map((row) => normalizeServiceClassificationRow(row)[0]).filter(Boolean))].sort();
+  return [...new Set((state.serviceClassifications || []).map((row) => normalizeServiceClassificationRow(row)[1]).filter(Boolean))].sort();
 }
 
 function subserviceValuesForAssetRow(row = []) {
@@ -2086,11 +2129,52 @@ function subserviceValuesForAssetRow(row = []) {
     ...new Set(
       (state.serviceClassifications || [])
         .map(normalizeServiceClassificationRow)
-        .filter((classification) => classification[0] === row[3])
-        .map((classification) => classification[1])
+        .filter((classification) => classification[1] === row[3])
+        .map((classification) => classification[3])
         .filter(Boolean),
     ),
   ].sort();
+}
+
+function subTypeValuesForAssetRow(row = []) {
+  if (!row[3] || !row[4]) return [];
+  return [
+    ...new Set(
+      (state.serviceClassifications || [])
+        .map(normalizeServiceClassificationRow)
+        .filter((classification) => classification[1] === row[3] && classification[3] === row[4])
+        .map((classification) => classification[5])
+        .filter(Boolean),
+    ),
+  ].sort();
+}
+
+function subSubTypeValuesForAssetRow(row = []) {
+  if (!row[3] || !row[4] || !row[22]) return [];
+  return [
+    ...new Set(
+      (state.serviceClassifications || [])
+        .map(normalizeServiceClassificationRow)
+        .filter((classification) => classification[1] === row[3] && classification[3] === row[4] && classification[5] === row[22])
+        .map((classification) => classification[7])
+        .filter(Boolean),
+    ),
+  ].sort();
+}
+
+function vbisCodeSummaryForAssetRow(row = []) {
+  const matches = (state.serviceClassifications || [])
+    .map(normalizeServiceClassificationRow)
+    .filter((classification) => classification[1] === row[3])
+    .filter((classification) => !row[4] || classification[3] === row[4])
+    .filter((classification) => !row[22] || classification[5] === row[22])
+    .filter((classification) => !row[23] || classification[7] === row[23]);
+  const match = matches.find((classification) => row[23] && classification[6]) || matches.find((classification) => row[22] && classification[4]) || matches.find((classification) => row[4] && classification[2]) || matches[0];
+  if (!match) return "";
+  if (row[23] && match[6]) return match[6];
+  if (row[22] && match[4]) return match[4];
+  if (row[4] && match[2]) return match[2];
+  return match[0] || "";
 }
 
 function siteDetailValuesForAssetRow(column, row = []) {
@@ -2130,7 +2214,16 @@ function clearAssetLocationChildren(row, column) {
 }
 
 function clearAssetServiceChildren(row, column) {
-  if (column === "serviceName") row[4] = "";
+  if (column === "serviceName") {
+    row[4] = "";
+    row[22] = "";
+    row[23] = "";
+  }
+  if (column === "subservice") {
+    row[22] = "";
+    row[23] = "";
+  }
+  if (column === "subType") row[23] = "";
 }
 
 function siteDetailColumnIndex(column) {
@@ -2709,6 +2802,7 @@ function createTableRows(listName, rows) {
   target.innerHTML = "";
   const descriptions = assetDescriptions();
   const targetData = listName === "siteDetails" ? state.siteDetails : currentManual()[listName];
+  const editorColumns = listName === "equipment" ? equipmentEditorColumns : listColumns[listName];
   const renderedRows =
     listName === "contacts" && selectedContactInitial !== "all"
       ? rows.map((row, rowIndex) => ({ row, rowIndex })).filter(({ row }) => contactInitial(row) === selectedContactInitial)
@@ -2722,7 +2816,8 @@ function createTableRows(listName, rows) {
   renderedRows.forEach(({ row, rowIndex }) => {
     const tr = document.createElement("tr");
     if (listName === "maintenance" || listName === "warranties") tr.dataset.linkedAssetRow = String(rowIndex);
-    listColumns[listName].forEach((column, columnIndex) => {
+    editorColumns.forEach((column) => {
+      const columnIndex = listColumns[listName].indexOf(column);
       if (column === "documentUrl") return;
       const td = document.createElement("td");
       td.dataset.label = editorLabel(listName, columnIndex);
@@ -2838,14 +2933,24 @@ function createTableRows(listName, rows) {
         tr.appendChild(td);
         return;
       }
-      if (listName === "equipment" && ["serviceName", "subservice"].includes(column)) {
+      if (listName === "equipment" && ["serviceName", "subservice", "subType", "subSubType"].includes(column)) {
         const select = document.createElement("select");
-        const values = column === "serviceName" ? serviceNameValues() : subserviceValuesForAssetRow(row);
+        const values =
+          column === "serviceName"
+            ? serviceNameValues()
+            : column === "subservice"
+            ? subserviceValuesForAssetRow(row)
+            : column === "subType"
+            ? subTypeValuesForAssetRow(row)
+            : subSubTypeValuesForAssetRow(row);
         const currentValue = row[columnIndex] || "";
         const options = currentValue && !values.includes(currentValue) ? [currentValue, ...values] : values;
-        const waitingForParent = column === "subservice" && !row[3];
+        const waitingForParent =
+          (column === "subservice" && !row[3]) ||
+          (column === "subType" && (!row[3] || !row[4])) ||
+          (column === "subSubType" && (!row[3] || !row[4] || !row[22]));
         select.innerHTML = [
-          `<option value="">${waitingForParent ? "Select service first..." : "Select..."}</option>`,
+          `<option value="">${waitingForParent ? "Select parent first..." : "Select..."}</option>`,
           ...options.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`),
         ].join("");
         select.disabled = waitingForParent && !currentValue;
@@ -2940,6 +3045,13 @@ function createTableRows(listName, rows) {
         tr.appendChild(description);
       }
     });
+    if (listName === "equipment") {
+      const codeCell = document.createElement("td");
+      codeCell.className = "derived-cell vbis-code-cell";
+      codeCell.dataset.label = "VBIS Code";
+      codeCell.textContent = vbisCodeSummaryForAssetRow(row) || "Not selected";
+      tr.appendChild(codeCell);
+    }
     const action = document.createElement("td");
     action.className = "editor-action-field";
     action.dataset.label = "Action";
@@ -3453,13 +3565,21 @@ function renderServiceClassificationTable() {
   const services = serviceNameValues();
   if (selectedServiceClassification && !services.includes(selectedServiceClassification)) selectedServiceClassification = "";
   if (!selectedServiceClassification && services.length) selectedServiceClassification = services[0];
-  const subservices = rows.filter(([service]) => service === selectedServiceClassification);
+  const products = [...new Set(rows.filter((row) => row[1] === selectedServiceClassification).map((row) => row[3]).filter(Boolean))].sort();
+  if (selectedServiceProduct && !products.includes(selectedServiceProduct)) selectedServiceProduct = "";
+  if (!selectedServiceProduct && products.length) selectedServiceProduct = products[0];
+  const subTypes = [...new Set(rows.filter((row) => row[1] === selectedServiceClassification && row[3] === selectedServiceProduct).map((row) => row[5]).filter(Boolean))].sort();
+  if (selectedServiceSubType && !subTypes.includes(selectedServiceSubType)) selectedServiceSubType = "";
+  if (!selectedServiceSubType && subTypes.length) selectedServiceSubType = subTypes[0];
+  const subSubTypes = rows.filter((row) => row[1] === selectedServiceClassification && row[3] === selectedServiceProduct && row[5] === selectedServiceSubType);
+  const codeFor = (predicate, index) => rows.find(predicate)?.[index] || "";
   target.innerHTML = `
     <section class="service-classification-tier">
-      <h3>Service Name</h3>
+      <h3>Discipline</h3>
       <div class="service-classification-add">
-        <input id="newServiceName" placeholder="New service name" />
-        <button id="addServiceClassification" type="button">Add Service</button>
+        <input id="newDisciplineCode" placeholder="Code" />
+        <input id="newServiceName" placeholder="Discipline name" />
+        <button id="addServiceClassification" type="button">Add Discipline</button>
       </div>
       <div class="service-classification-list">
         ${
@@ -3468,7 +3588,7 @@ function renderServiceClassificationTable() {
                 .map(
                   (service) => `
                     <div class="service-classification-value">
-                      <button class="service-classification-select${service === selectedServiceClassification ? " active" : ""}" data-service-name="${escapeHtml(service)}" type="button">${escapeHtml(service)}</button>
+                      <button class="service-classification-select${service === selectedServiceClassification ? " active" : ""}" data-service-name="${escapeHtml(service)}" type="button">${escapeHtml(codeFor((row) => row[1] === service, 0) ? `${codeFor((row) => row[1] === service, 0)} - ` : "")}${escapeHtml(service)}</button>
                       <button class="remove-row remove-service-classification" data-service-name-remove="${escapeHtml(service)}" type="button">Remove</button>
                     </div>
                   `,
@@ -3479,27 +3599,80 @@ function renderServiceClassificationTable() {
       </div>
     </section>
     <section class="service-classification-tier">
-      <h3>Sub Service</h3>
+      <h3>Product</h3>
       <div class="service-classification-add">
-        <input id="newSubService" placeholder="New sub service" ${selectedServiceClassification ? "" : "disabled"} />
-        <button id="addSubServiceClassification" type="button" ${selectedServiceClassification ? "" : "disabled"}>Add Sub Service</button>
+        <input id="newProductCode" placeholder="Code" ${selectedServiceClassification ? "" : "disabled"} />
+        <input id="newSubService" placeholder="Product name" ${selectedServiceClassification ? "" : "disabled"} />
+        <button id="addSubServiceClassification" type="button" ${selectedServiceClassification ? "" : "disabled"}>Add Product</button>
       </div>
       <div class="service-classification-list">
         ${
           selectedServiceClassification
-            ? subservices.length
-              ? subservices
+            ? products.length
+              ? products
                   .map(
-                    ([service, subservice], index) => `
+                    (product) => `
                       <div class="service-classification-value">
-                        <span>${escapeHtml(subservice || "(blank)")}</span>
-                        <button class="remove-row remove-service-classification" data-service-row-remove="${index}" data-service-name="${escapeHtml(service)}" data-sub-service="${escapeHtml(subservice)}" type="button">Remove</button>
+                        <button class="service-classification-select${product === selectedServiceProduct ? " active" : ""}" data-product-name="${escapeHtml(product)}" type="button">${escapeHtml(codeFor((row) => row[1] === selectedServiceClassification && row[3] === product, 2) ? `${codeFor((row) => row[1] === selectedServiceClassification && row[3] === product, 2)} - ` : "")}${escapeHtml(product)}</button>
+                        <button class="remove-row remove-service-classification" data-service-name="${escapeHtml(selectedServiceClassification)}" data-sub-service="${escapeHtml(product)}" type="button">Remove</button>
                       </div>
                     `,
                   )
                   .join("")
-              : '<p class="empty-note">No sub services for the selected service.</p>'
-            : '<p class="empty-note">Select or add a service first.</p>'
+              : '<p class="empty-note">No products for the selected discipline.</p>'
+            : '<p class="empty-note">Select or add a discipline first.</p>'
+        }
+      </div>
+    </section>
+    <section class="service-classification-tier">
+      <h3>Sub-Type</h3>
+      <div class="service-classification-add">
+        <input id="newSubTypeCode" placeholder="Code" ${selectedServiceProduct ? "" : "disabled"} />
+        <input id="newSubTypeName" placeholder="Sub-type name" ${selectedServiceProduct ? "" : "disabled"} />
+        <button id="addSubTypeClassification" type="button" ${selectedServiceProduct ? "" : "disabled"}>Add Sub-Type</button>
+      </div>
+      <div class="service-classification-list">
+        ${
+          selectedServiceProduct
+            ? subTypes.length
+              ? subTypes
+                  .map(
+                    (subType) => `
+                      <div class="service-classification-value">
+                        <button class="service-classification-select${subType === selectedServiceSubType ? " active" : ""}" data-sub-type-name="${escapeHtml(subType)}" type="button">${escapeHtml(codeFor((row) => row[1] === selectedServiceClassification && row[3] === selectedServiceProduct && row[5] === subType, 4) ? `${codeFor((row) => row[1] === selectedServiceClassification && row[3] === selectedServiceProduct && row[5] === subType, 4)} - ` : "")}${escapeHtml(subType)}</button>
+                        <button class="remove-row remove-service-classification" data-service-name="${escapeHtml(selectedServiceClassification)}" data-sub-service="${escapeHtml(selectedServiceProduct)}" data-sub-type="${escapeHtml(subType)}" type="button">Remove</button>
+                      </div>
+                    `,
+                  )
+                  .join("")
+              : '<p class="empty-note">No sub-types for the selected product.</p>'
+            : '<p class="empty-note">Select or add a product first.</p>'
+        }
+      </div>
+    </section>
+    <section class="service-classification-tier">
+      <h3>Sub-Sub Type</h3>
+      <div class="service-classification-add">
+        <input id="newSubSubTypeCode" placeholder="Code" ${selectedServiceSubType ? "" : "disabled"} />
+        <input id="newSubSubTypeName" placeholder="Sub-sub type name" ${selectedServiceSubType ? "" : "disabled"} />
+        <button id="addSubSubTypeClassification" type="button" ${selectedServiceSubType ? "" : "disabled"}>Add Sub-Sub Type</button>
+      </div>
+      <div class="service-classification-list">
+        ${
+          selectedServiceSubType
+            ? subSubTypes.length
+              ? subSubTypes
+                  .map(
+                    (row) => `
+                      <div class="service-classification-value">
+                        <span>${escapeHtml(row[6] ? `${row[6]} - ${row[7] || "(blank)"}` : row[7] || "(blank)")}</span>
+                        <button class="remove-row remove-service-classification" data-service-name="${escapeHtml(row[1])}" data-sub-service="${escapeHtml(row[3])}" data-sub-type="${escapeHtml(row[5])}" data-sub-sub-type="${escapeHtml(row[7])}" type="button">Remove</button>
+                      </div>
+                    `,
+                  )
+                  .join("")
+              : '<p class="empty-note">No sub-sub types for the selected sub-type.</p>'
+            : '<p class="empty-note">Select or add a sub-type first.</p>'
         }
       </div>
     </section>
@@ -3985,13 +4158,15 @@ function assetRegisterHtml(rows, prefix = "asset") {
           <tbody>
             <tr>${labelHtml("Asset ID", `<span class="asset-anchor">${textOrDash(row[0])}</span>`)}${labelValue("Parent Asset ID", row[1])}</tr>
             <tr>${labelValue("Description", row[2])}${labelValue("Make", row[10])}</tr>
-            <tr>${labelValue("Service Name", row[3])}${labelValue("Model", row[11])}</tr>
-            <tr>${labelValue("Subservice", row[4])}${labelValue("Serial Number", row[12])}</tr>
-            <tr>${labelValue("Site Name", row[5])}${labelValue("Supplier", row[13])}</tr>
-            <tr>${labelValue("Structure", row[6])}${labelValue("Quantity", row[14])}</tr>
-            <tr>${labelValue("Level Name", row[7])}${labelValue("Retail Price $", row[15])}</tr>
-            <tr>${labelValue("Space Name", row[8])}${labelValue("Install Date", row[16])}</tr>
-            <tr>${labelValue("Location Description", row[9])}${labelValue("Wty Expiry Date", row[17])}</tr>
+            <tr>${labelValue("Discipline Name", row[3])}${labelValue("Product Name", row[4])}</tr>
+            <tr>${labelValue("Sub-Type Name", row[22])}${labelValue("Sub-Sub Type Name", row[23])}</tr>
+            <tr>${labelValue("VBIS Code", vbisCodeSummaryForAssetRow(row))}${labelValue("Model", row[11])}</tr>
+            <tr>${labelValue("Make", row[10])}${labelValue("Serial Number", row[12])}</tr>
+            <tr>${labelValue("Supplier", row[13])}${labelValue("Site Name", row[5])}</tr>
+            <tr>${labelValue("Structure", row[6])}${labelValue("Level Name", row[7])}</tr>
+            <tr>${labelValue("Space Name", row[8])}${labelValue("Location Description", row[9])}</tr>
+            <tr>${labelValue("Quantity", row[14])}${labelValue("Retail Price $", row[15])}</tr>
+            <tr>${labelValue("Install Date", row[16])}${labelValue("Wty Expiry Date", row[17])}</tr>
             <tr>${labelValue("Life Expectancy (yrs)", row[18])}${labelValue("Updated Date", row[20])}</tr>
             <tr>${labelValue("Updated User", row[21])}<th></th><td></td></tr>
             <tr>
@@ -4452,10 +4627,22 @@ function exportExcelWorkbook() {
 
   XLSX.utils.book_append_sheet(
     workbook,
-    sheetFromObjects(["Service Name", "Sub Service"], (state.serviceClassifications || []).map(([service, subservice]) => ({
-      "Service Name": service || "",
-      "Sub Service": subservice || "",
-    }))),
+    sheetFromObjects(
+      ["Discipline Code", "Discipline Name", "Product Code", "Product Name", "Sub-Type Code", "Sub-Type Name", "Sub-Sub Type Code", "Sub-Sub Type Name"],
+      (state.serviceClassifications || []).map((row) => {
+        const normal = normalizeServiceClassificationRow(row);
+        return {
+          "Discipline Code": normal[0] || "",
+          "Discipline Name": normal[1] || "",
+          "Product Code": normal[2] || "",
+          "Product Name": normal[3] || "",
+          "Sub-Type Code": normal[4] || "",
+          "Sub-Type Name": normal[5] || "",
+          "Sub-Sub Type Code": normal[6] || "",
+          "Sub-Sub Type Name": normal[7] || "",
+        };
+      }),
+    ),
     "Service Classifications",
   );
 
@@ -4503,7 +4690,16 @@ function importExcelWorkbook(workbook) {
     .map(normalizeSiteDetailRow);
 
   const importedClassifications = readSheetRows(workbook, "Service Classifications")
-    .map((row) => [row["Service Name"] || "", row["Sub Service"] || ""])
+    .map((row) => [
+      row["Discipline Code"] || "",
+      row["Discipline Name"] || row["Service Name"] || "",
+      row["Product Code"] || "",
+      row["Product Name"] || row["Sub Service"] || "",
+      row["Sub-Type Code"] || "",
+      row["Sub-Type Name"] || "",
+      row["Sub-Sub Type Code"] || "",
+      row["Sub-Sub Type Name"] || "",
+    ])
     .filter((row) => row.some(Boolean))
     .map(normalizeServiceClassificationRow);
   next.serviceClassifications = importedClassifications.length ? importedClassifications : cloneData(defaultServiceClassifications);
@@ -4863,16 +5059,27 @@ document.querySelector("#addSiteDetailPath").addEventListener("click", (event) =
   addSiteDetailPathFromFields();
 });
 
-function addServiceClassificationValue(service, subservice = "") {
-  const row = normalizeServiceClassificationRow([service, subservice]);
-  if (!row[0]) return;
+function addServiceClassificationValue(disciplineName, productName = "", subTypeName = "", subSubTypeName = "", codes = {}) {
+  const row = normalizeServiceClassificationRow([
+    codes.disciplineCode || "",
+    disciplineName,
+    codes.productCode || "",
+    productName,
+    codes.subTypeCode || "",
+    subTypeName,
+    codes.subSubTypeCode || "",
+    subSubTypeName,
+  ]);
+  if (!row[1]) return;
   if (!Array.isArray(state.serviceClassifications)) state.serviceClassifications = [];
   const exists = state.serviceClassifications.some((item) => {
     const normal = normalizeServiceClassificationRow(item);
-    return normal[0] === row[0] && normal[1] === row[1];
+    return normal[1] === row[1] && normal[3] === row[3] && normal[5] === row[5] && normal[7] === row[7];
   });
   if (!exists) state.serviceClassifications.push(row);
-  selectedServiceClassification = row[0];
+  selectedServiceClassification = row[1];
+  selectedServiceProduct = row[3] || selectedServiceProduct;
+  selectedServiceSubType = row[5] || selectedServiceSubType;
   renderServiceClassificationTable();
   renderEditors();
   persistAndRender();
@@ -4899,18 +5106,45 @@ document.addEventListener("click", (event) => {
   const serviceSelect = event.target.closest(".service-classification-select");
   if (serviceSelect) {
     event.preventDefault();
-    selectedServiceClassification = serviceSelect.dataset.serviceName || "";
+    if (serviceSelect.dataset.serviceName) {
+      selectedServiceClassification = serviceSelect.dataset.serviceName || "";
+      selectedServiceProduct = "";
+      selectedServiceSubType = "";
+    }
+    if (serviceSelect.dataset.productName) {
+      selectedServiceProduct = serviceSelect.dataset.productName || "";
+      selectedServiceSubType = "";
+    }
+    if (serviceSelect.dataset.subTypeName) selectedServiceSubType = serviceSelect.dataset.subTypeName || "";
     renderServiceClassificationTable();
     return;
   }
   if (event.target.closest("#addServiceClassification")) {
     event.preventDefault();
-    addServiceClassificationValue(document.querySelector("#newServiceName")?.value.trim() || "");
+    addServiceClassificationValue(document.querySelector("#newServiceName")?.value.trim() || "", "", "", "", {
+      disciplineCode: document.querySelector("#newDisciplineCode")?.value.trim() || "",
+    });
     return;
   }
   if (event.target.closest("#addSubServiceClassification")) {
     event.preventDefault();
-    addServiceClassificationValue(selectedServiceClassification, document.querySelector("#newSubService")?.value.trim() || "");
+    addServiceClassificationValue(selectedServiceClassification, document.querySelector("#newSubService")?.value.trim() || "", "", "", {
+      productCode: document.querySelector("#newProductCode")?.value.trim() || "",
+    });
+    return;
+  }
+  if (event.target.closest("#addSubTypeClassification")) {
+    event.preventDefault();
+    addServiceClassificationValue(selectedServiceClassification, selectedServiceProduct, document.querySelector("#newSubTypeName")?.value.trim() || "", "", {
+      subTypeCode: document.querySelector("#newSubTypeCode")?.value.trim() || "",
+    });
+    return;
+  }
+  if (event.target.closest("#addSubSubTypeClassification")) {
+    event.preventDefault();
+    addServiceClassificationValue(selectedServiceClassification, selectedServiceProduct, selectedServiceSubType, document.querySelector("#newSubSubTypeName")?.value.trim() || "", {
+      subSubTypeCode: document.querySelector("#newSubSubTypeCode")?.value.trim() || "",
+    });
     return;
   }
   const serviceRemove = event.target.closest(".remove-service-classification");
@@ -4918,14 +5152,21 @@ document.addEventListener("click", (event) => {
     event.preventDefault();
     const serviceToRemove = serviceRemove.dataset.serviceNameRemove;
     const subserviceToRemove = serviceRemove.dataset.subService;
+    const subTypeToRemove = serviceRemove.dataset.subType;
+    const subSubTypeToRemove = serviceRemove.dataset.subSubType;
     const rowService = serviceRemove.dataset.serviceName;
     if (serviceToRemove) {
-      state.serviceClassifications = (state.serviceClassifications || []).filter((row) => normalizeServiceClassificationRow(row)[0] !== serviceToRemove);
+      state.serviceClassifications = (state.serviceClassifications || []).filter((row) => normalizeServiceClassificationRow(row)[1] !== serviceToRemove);
       if (selectedServiceClassification === serviceToRemove) selectedServiceClassification = "";
     } else {
       state.serviceClassifications = (state.serviceClassifications || []).filter((row) => {
         const normal = normalizeServiceClassificationRow(row);
-        return !(normal[0] === rowService && normal[1] === subserviceToRemove);
+        return !(
+          normal[1] === rowService &&
+          (!subserviceToRemove || normal[3] === subserviceToRemove) &&
+          (!subTypeToRemove || normal[5] === subTypeToRemove) &&
+          (!subSubTypeToRemove || normal[7] === subSubTypeToRemove)
+        );
       });
     }
     renderServiceClassificationTable();
