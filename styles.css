@@ -1264,6 +1264,11 @@ textarea {
   padding: 14px;
 }
 
+.settings-note.compact {
+  margin: 0 0 12px;
+  padding: 0;
+}
+
 .matrix-check {
   align-items: center;
   cursor: pointer;
@@ -1305,6 +1310,13 @@ textarea {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
+.asset-mandatory-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
 .asset-mandatory-check {
   align-items: center;
   background: #fff;
@@ -1331,6 +1343,17 @@ textarea {
 
 .mandatory-field-cell {
   background: #fff8ed;
+}
+
+.mandatory-field-missing {
+  background: #fff0f0;
+  box-shadow: inset 3px 0 0 #dc2626;
+}
+
+.mandatory-field-missing input,
+.mandatory-field-missing select,
+.mandatory-field-missing textarea {
+  border-color: #dc2626;
 }
 
 .file-picker {

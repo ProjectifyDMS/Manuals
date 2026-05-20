@@ -269,6 +269,21 @@ const sectionDefaults = {
   reviews: createDefaultReviews(),
 };
 
+const defaultAssetMandatoryFields = [
+  "assetId",
+  "description",
+  "serviceName",
+  "siteName",
+  "structureName",
+  "levelName",
+  "spaceName",
+  "make",
+  "model",
+  "supplier",
+  "quantity",
+  "retailPrice",
+];
+
 const defaults = {
   fields: {
     projectName: "",
@@ -680,21 +695,6 @@ const listColumns = {
   asBuilts: ["drawing", "revision", "date", "location", "notes", "concealedServices", "attachment", "documentUrl"],
   documents: ["type", "title", "reference", "notes", "attachment", "documentUrl"],
 };
-
-const defaultAssetMandatoryFields = [
-  "assetId",
-  "description",
-  "serviceName",
-  "siteName",
-  "structureName",
-  "levelName",
-  "spaceName",
-  "make",
-  "model",
-  "supplier",
-  "quantity",
-  "retailPrice",
-];
 
 const spreadsheetColumns = {
   project: [
@@ -1311,6 +1311,10 @@ function applyRolePermissions() {
     button.disabled = !canEdit;
     button.title = canEdit ? "" : "Your role cannot edit section content.";
   });
+  document.querySelectorAll("[data-asset-mandatory-field], [data-asset-mandatory-preset]").forEach((control) => {
+    control.disabled = false;
+    control.title = "";
+  });
   if (!canManageSettings && document.querySelector('[data-panel="settings"]')?.classList.contains("active")) {
     const projectTab = document.querySelector('.tab[data-tab="project"]') || document.querySelector(".tab");
     if (projectTab) activateTab(projectTab);
@@ -1742,6 +1746,7 @@ function renderAssetMandatoryFields() {
   state.assetMandatoryFields = normalizeAssetMandatoryFields(state.assetMandatoryFields);
   const selected = new Set(state.assetMandatoryFields);
   target.innerHTML = `
+    <p class="settings-note compact">Ticked fields are required for Asset Register dashboard completion. Blank mandatory cells are highlighted in the register.</p>
     <div class="asset-mandatory-grid">
       ${editorColumnLabels.equipment
         .map(
@@ -1757,6 +1762,11 @@ function renderAssetMandatoryFields() {
           `,
         )
         .join("")}
+    </div>
+    <div class="asset-mandatory-actions">
+      <button class="secondary" data-asset-mandatory-preset="default" type="button">Use Common Fields</button>
+      <button class="secondary" data-asset-mandatory-preset="all" type="button">Select All</button>
+      <button class="secondary" data-asset-mandatory-preset="none" type="button">Clear Mandatory Fields</button>
     </div>
   `;
 }
@@ -2665,8 +2675,11 @@ function createTableRows(listName, rows) {
       if (column === "documentUrl") return;
       const td = document.createElement("td");
       td.dataset.label = editorLabel(listName, columnIndex);
-      if (listName === "equipment" && normalizeAssetMandatoryFields(state.assetMandatoryFields).includes(column)) {
+      const assetFieldIsMandatory = listName === "equipment" && isAssetMandatoryField(column);
+      if (assetFieldIsMandatory) {
         td.classList.add("mandatory-field-cell");
+        td.dataset.label = `${editorLabel(listName, columnIndex)} *`;
+        if (!filled(row[columnIndex])) td.classList.add("mandatory-field-missing");
       }
       if (listName === "equipment" && column === "description") td.classList.add("wide-description-cell");
       const longField = ["notes", "task", "details", "conditions", "signoff", "referenceInformation", "evidence", "concealedServices"].includes(column);
@@ -2785,7 +2798,8 @@ function createTableRows(listName, rows) {
           ...options.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`),
         ].join("");
         select.disabled = waitingForParent && !currentValue;
-        select.required = listName === "equipment" && normalizeAssetMandatoryFields(state.assetMandatoryFields).includes(column);
+        select.required = assetFieldIsMandatory;
+        if (assetFieldIsMandatory) select.title = "Mandatory field";
         select.value = currentValue;
         select.addEventListener("change", () => {
           targetData[rowIndex][columnIndex] = select.value;
@@ -2811,7 +2825,8 @@ function createTableRows(listName, rows) {
           ...options.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`),
         ].join("");
         select.disabled = waitingForParent && !currentValue;
-        select.required = listName === "equipment" && normalizeAssetMandatoryFields(state.assetMandatoryFields).includes(column);
+        select.required = assetFieldIsMandatory;
+        if (assetFieldIsMandatory) select.title = "Mandatory field";
         select.value = currentValue;
         select.addEventListener("change", () => {
           targetData[rowIndex][columnIndex] = select.value;
@@ -2841,7 +2856,8 @@ function createTableRows(listName, rows) {
         input.placeholder = "Hours, Days, Months, Years";
       }
       input.value = row[columnIndex] || "";
-      input.required = listName === "equipment" && normalizeAssetMandatoryFields(state.assetMandatoryFields).includes(column);
+      input.required = assetFieldIsMandatory;
+      if (assetFieldIsMandatory) input.title = "Mandatory field";
       if (!input.rows) input.rows = 2;
       input.addEventListener("input", () => {
         targetData[rowIndex][columnIndex] = input.value;
@@ -3503,6 +3519,10 @@ function rowCompletion(rows, requiredColumns, labels, emptyMessage) {
 function assetMandatoryColumnIndexes() {
   const mandatory = normalizeAssetMandatoryFields(state.assetMandatoryFields);
   return mandatory.map((field) => listColumns.equipment.indexOf(field)).filter((index) => index >= 0);
+}
+
+function isAssetMandatoryField(column) {
+  return normalizeAssetMandatoryFields(state.assetMandatoryFields).includes(column);
 }
 
 function dashboardSection(label, completion, tab = "") {
@@ -4564,16 +4584,24 @@ function handleRolePermissionChange(field) {
 function handleAssetMandatoryFieldChange(field) {
   const fieldKey = field?.dataset?.assetMandatoryField;
   if (!fieldKey) return false;
-  if (!userCanManageSettings()) {
-    field.checked = normalizeAssetMandatoryFields(state.assetMandatoryFields).includes(fieldKey);
-    return true;
-  }
   const selected = new Set(normalizeAssetMandatoryFields(state.assetMandatoryFields));
   if (field.checked) selected.add(fieldKey);
   else selected.delete(fieldKey);
   state.assetMandatoryFields = listColumns.equipment.filter((column) => selected.has(column));
   createTableRows("equipment", currentManual().equipment);
   renderAssetMandatoryFields();
+  persistAndRender();
+  return true;
+}
+
+function handleAssetMandatoryPreset(button) {
+  const preset = button?.dataset?.assetMandatoryPreset;
+  if (!preset) return false;
+  if (preset === "all") state.assetMandatoryFields = [...listColumns.equipment];
+  else if (preset === "none") state.assetMandatoryFields = [];
+  else state.assetMandatoryFields = [...defaultAssetMandatoryFields];
+  renderAssetMandatoryFields();
+  createTableRows("equipment", currentManual().equipment);
   persistAndRender();
   return true;
 }
@@ -4619,6 +4647,10 @@ document.addEventListener("change", (event) => {
   if (handleAssetMandatoryFieldChange(event.target)) return;
   if (handleRolePermissionChange(event.target)) return;
   handleReviewFieldInput(event.target);
+});
+
+document.addEventListener("click", (event) => {
+  if (handleAssetMandatoryPreset(event.target)) return;
 });
 
 document.querySelector("#manualForm").addEventListener("submit", (event) => {
