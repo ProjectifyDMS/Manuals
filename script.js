@@ -1803,6 +1803,7 @@ async function populateLoginProjectSelect() {
       ...records.map((record) => `<option value="${escapeHtml(cloudProjectOptionValue(record))}">Supabase - ${escapeHtml(record.name)}</option>`),
       ...localNames.map((name) => `<option value="${escapeHtml(localProjectOptionValue(name))}">Local - ${escapeHtml(name)}</option>`),
     ].join("");
+    if (!select.value && select.options.length === 2) select.selectedIndex = 1;
     if (openButton) openButton.disabled = !select.value;
     return;
   }
@@ -1810,6 +1811,7 @@ async function populateLoginProjectSelect() {
     `<option value="">${localNames.length ? "Select saved project..." : "No saved projects yet"}</option>`,
     ...localNames.map((name) => `<option value="${escapeHtml(localProjectOptionValue(name))}">${escapeHtml(name)}</option>`),
   ].join("");
+  if (!select.value && select.options.length === 2) select.selectedIndex = 1;
   if (openButton) openButton.disabled = !select.value;
 }
 
@@ -1912,11 +1914,19 @@ async function loadProjectRecord(name) {
     if (record) record = { ...record, name: selectedName };
   }
   if (!record) {
-    alert("That saved project could not be found. Try selecting it again, or create a new project.");
+    setLoginMessage("That saved project could not be found. Try selecting it again, or create a new project.");
     await populateLoginProjectSelect();
     return false;
   }
-  const recordData = record.data || {};
+  let recordData = record.data || {};
+  if (typeof recordData === "string") {
+    try {
+      recordData = JSON.parse(recordData);
+    } catch {
+      setLoginMessage("That saved project could not be read. The saved data may be damaged.");
+      return false;
+    }
+  }
   state = {
     ...cloneData(defaults),
     ...cloneData(recordData),
@@ -1926,10 +1936,16 @@ async function loadProjectRecord(name) {
     assetMandatoryFields: normalizeAssetMandatoryFields(recordData.assetMandatoryFields),
     rolePermissions: mergeRolePermissions(recordData.rolePermissions),
   };
+  state.selectedFolder = cleanFolder(state.selectedFolder || defaults.selectedFolder);
+  state.folders = state.folders && !Array.isArray(state.folders) ? state.folders : {};
+  ensureActiveFolder();
   renderFolderPicker();
   renderEditors();
   persistAndRender();
+  renderPreview();
+  applyRolePermissions();
   await renderProjectDatabaseControls(record.name || name);
+  setLoginMessage("");
   return true;
 }
 
@@ -5009,9 +5025,10 @@ document.querySelector("#loginSubmit").addEventListener("click", async () => {
 document.querySelector("#loginOpenProject").addEventListener("click", async () => {
   const name = document.querySelector("#loginProjectSelect").value;
   if (!name) {
-    alert("Select a saved project first.");
+    setLoginMessage("Select a saved project first.");
     return;
   }
+  setLoginMessage("Opening project...");
   const opened = await loadProjectRecord(name);
   if (opened) unlockApp();
 });
@@ -5019,6 +5036,7 @@ document.querySelector("#loginOpenProject").addEventListener("click", async () =
 document.querySelector("#loginProjectSelect").addEventListener("change", (event) => {
   const openButton = document.querySelector("#loginOpenProject");
   if (openButton) openButton.disabled = !event.target.value;
+  setLoginMessage(event.target.value ? "" : "Select a saved project first.");
 });
 
 document.querySelector("#loginNewProject").addEventListener("click", async () => {
