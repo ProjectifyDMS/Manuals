@@ -8,6 +8,7 @@ const SUPABASE_URL = "https://ixqastmhzqzseokrvsxd.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_IULuuPMBDRN4BmQ-zFscFw_5b7ftrDc";
 const SUPABASE_PROJECTS_TABLE = "om_projects";
 const SUPABASE_PROFILES_TABLE = "om_profiles";
+const SUPABASE_AI_HELPER_FUNCTION = `${SUPABASE_URL}/functions/v1/om-ai-helper`;
 const KEY_SEPARATOR = "||";
 let storageAvailable = true;
 let selectedSiteDetailPath = {
@@ -90,6 +91,48 @@ const reviewSectionConfig = [
   ["documents", "Documents"],
   ["safety", "Safety"],
 ];
+const aiHelperSections = {
+  project: {
+    label: "Project Details",
+    fields: [["projectSummary", "Project summary"]],
+  },
+  introduction: {
+    label: "Intro & Scope",
+    fields: [
+      ["introduction", "Introduction"],
+      ["scopeOfWorks", "Scope of works"],
+    ],
+  },
+  contacts: { label: "Key Contacts", fields: [] },
+  equipment: { label: "Assets", fields: [] },
+  maintenance: { label: "Maintenance", fields: [] },
+  technical: {
+    label: "Technical Data",
+    fields: [
+      ["operatingInstructions", "Operating instructions"],
+      ["technicalData", "Technical data"],
+    ],
+  },
+  warranties: { label: "Warranties", fields: [] },
+  certificates: { label: "Certificates", fields: [] },
+  commissioning: {
+    label: "Commissioning",
+    fields: [["commissioningSummary", "Commissioning summary"]],
+  },
+  spares: {
+    label: "Spare Parts",
+    fields: [["spareParts", "Spare parts"]],
+  },
+  asBuilts: { label: "As Builts", fields: [] },
+  documents: { label: "Documents", fields: [] },
+  safety: {
+    label: "Safety",
+    fields: [
+      ["safetyRequirements", "Safety requirements"],
+      ["emergencyProcedures", "Emergency procedures"],
+    ],
+  },
+};
 const roleDisplayNames = {
   admin: "Admin",
   reviewer: "Reviewer",
@@ -1152,6 +1195,10 @@ function applyRolePermissions() {
   document.querySelectorAll(".review-approve, .review-reject").forEach((button) => {
     if (!canReview) button.disabled = true;
   });
+  document.querySelectorAll(".ai-helper-action, .ai-apply-suggestion").forEach((button) => {
+    button.disabled = !canEdit;
+    button.title = canEdit ? "" : "Your role cannot edit section content.";
+  });
   if (!canManageSettings && document.querySelector('[data-panel="settings"]')?.classList.contains("active")) {
     const projectTab = document.querySelector('.tab[data-tab="project"]') || document.querySelector(".tab");
     if (projectTab) activateTab(projectTab);
@@ -2193,6 +2240,42 @@ function addSectionNavigationButtons() {
   });
 }
 
+function aiHelperFieldOptions(sectionKey) {
+  const config = aiHelperSections[sectionKey];
+  const options = config?.fields || [];
+  if (!options.length) return '<option value="">Section guidance</option>';
+  return options
+    .map(([fieldName, label]) => `<option value="${escapeHtml(fieldName)}">${escapeHtml(label)}</option>`)
+    .join("");
+}
+
+function addAiHelperPanels() {
+  Object.entries(aiHelperSections).forEach(([sectionKey, config]) => {
+    const panel = document.querySelector(`[data-panel="${sectionKey}"]`);
+    if (!panel || panel.querySelector(".ai-helper-panel")) return;
+    const helper = document.createElement("section");
+    helper.className = "ai-helper-panel";
+    helper.dataset.aiSection = sectionKey;
+    helper.innerHTML = `
+      <div class="ai-helper-head">
+        <div>
+          <h3>AI Helper</h3>
+          <p>Draft or improve this section using Australian English and practical O&M terminology.</p>
+        </div>
+        <div class="ai-helper-controls">
+          <select data-ai-target="${escapeHtml(sectionKey)}">
+            ${aiHelperFieldOptions(sectionKey)}
+          </select>
+          <button class="secondary ai-helper-action" data-ai-action="suggest" data-ai-section="${escapeHtml(sectionKey)}" type="button">Suggest</button>
+        </div>
+      </div>
+      <div class="ai-helper-output" data-ai-output="${escapeHtml(sectionKey)}"></div>
+    `;
+    const title = panel.querySelector(".section-title");
+    title?.insertAdjacentElement("afterend", helper);
+  });
+}
+
 function reviewPanelHtml(sectionKey, sectionLabel) {
   const review = currentManual().reviews?.[sectionKey] || cloneData(reviewDefaults);
   const canReview = userHasPermission("review");
@@ -2275,6 +2358,98 @@ function applyReviewAction(sectionKey, action) {
   renderReviewPanels();
   renderDashboard();
   persistAndRender();
+}
+
+function aiSectionPayload(sectionKey, targetField = "") {
+  const manual = currentManual();
+  const fieldValue = targetField
+    ? projectFieldNames.includes(targetField)
+      ? state.fields[targetField] || ""
+      : manual.fields?.[targetField] || ""
+    : "";
+  return {
+    sectionKey,
+    sectionLabel: aiHelperSections[sectionKey]?.label || sectionKey,
+    targetField,
+    fieldValue,
+    project: state.fields,
+    selectedFolder: ensureActiveFolder(),
+    siteDetails: state.siteDetails,
+    serviceClassifications: state.serviceClassifications,
+    manual,
+  };
+}
+
+function aiHelperOutput(sectionKey, html) {
+  const target = document.querySelector(`[data-ai-output="${sectionKey}"]`);
+  if (target) target.innerHTML = html;
+}
+
+function aiHelperResponseText(data) {
+  if (typeof data?.suggestion === "string") return data.suggestion;
+  if (typeof data?.text === "string") return data.text;
+  return "";
+}
+
+async function requestAiSuggestion(sectionKey) {
+  if (!userHasPermission("edit")) return alert("Your role cannot edit section content.");
+  if (!currentSupabaseUser || !cloudModeAvailable()) {
+    return alert("AI Helper needs Supabase login so the request can go through the secure Edge Function.");
+  }
+  const client = initialiseSupabaseClient();
+  const { data: sessionData } = await client.auth.getSession();
+  const token = sessionData?.session?.access_token;
+  if (!token) return alert("Please log in again before using AI Helper.");
+  const targetField = document.querySelector(`[data-ai-target="${sectionKey}"]`)?.value || "";
+  aiHelperOutput(sectionKey, '<p class="ai-helper-status">Generating suggestion...</p>');
+  try {
+    const response = await fetch(SUPABASE_AI_HELPER_FUNCTION, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(aiSectionPayload(sectionKey, targetField)),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "AI Helper request failed.");
+    const suggestion = aiHelperResponseText(data);
+    if (!suggestion) throw new Error("AI Helper did not return a suggestion.");
+    aiHelperOutput(
+      sectionKey,
+      `
+        <textarea class="ai-helper-suggestion" data-ai-suggestion="${escapeHtml(sectionKey)}" rows="6">${escapeHtml(suggestion)}</textarea>
+        <div class="ai-helper-result-actions">
+          ${
+            targetField
+              ? `<button class="secondary ai-apply-suggestion" data-ai-apply="${escapeHtml(sectionKey)}" data-ai-field="${escapeHtml(targetField)}" type="button">Apply to Field</button>`
+              : ""
+          }
+          <span class="ai-helper-status">Review before applying.</span>
+        </div>
+      `,
+    );
+    applyRolePermissions();
+  } catch (error) {
+    aiHelperOutput(
+      sectionKey,
+      `<p class="ai-helper-error">${escapeHtml(error.message || "AI Helper is not available yet. Check the Supabase Edge Function setup.")}</p>`,
+    );
+  }
+}
+
+function applyAiSuggestion(sectionKey, fieldName) {
+  const suggestion = document.querySelector(`[data-ai-suggestion="${sectionKey}"]`)?.value || "";
+  if (!fieldName || !suggestion.trim()) return;
+  if (projectFieldNames.includes(fieldName)) {
+    state.fields[fieldName] = suggestion;
+  } else if (sectionFieldNames.includes(fieldName)) {
+    currentManual().fields[fieldName] = suggestion;
+  }
+  const field = document.querySelector(`[name="${fieldName}"]`);
+  if (field) field.value = suggestion;
+  persistAndRender();
+  aiHelperOutput(sectionKey, '<p class="ai-helper-status">Suggestion applied.</p>');
 }
 
 function contactInitial(row = []) {
@@ -4362,6 +4537,18 @@ function addServiceClassificationValue(service, subservice = "") {
 }
 
 document.addEventListener("click", (event) => {
+  const aiAction = event.target.closest("[data-ai-action]");
+  if (aiAction) {
+    event.preventDefault();
+    requestAiSuggestion(aiAction.dataset.aiSection || "");
+    return;
+  }
+  const aiApply = event.target.closest("[data-ai-apply]");
+  if (aiApply) {
+    event.preventDefault();
+    applyAiSuggestion(aiApply.dataset.aiApply || "", aiApply.dataset.aiField || "");
+    return;
+  }
   if (event.target.closest("#refreshUserProfiles")) {
     event.preventDefault();
     refreshUserManagementProfiles();
@@ -4631,6 +4818,7 @@ try {
   state = loadState();
   ensureActiveFolder();
   addSectionNavigationButtons();
+  addAiHelperPanels();
   renderFolderPicker();
   renderEditors();
   renderProjectDatabaseControls("");
