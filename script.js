@@ -1348,6 +1348,10 @@ function cloudProjectOptionValue(record) {
   return record?.id ? `cloud:${record.id}` : "";
 }
 
+function localProjectOptionValue(name) {
+  return `local:${name}`;
+}
+
 async function refreshCloudProjectRecords() {
   const client = initialiseSupabaseClient();
   if (!client || !currentSupabaseUser) {
@@ -1746,20 +1750,23 @@ function renderAssetMandatoryFields() {
   state.assetMandatoryFields = normalizeAssetMandatoryFields(state.assetMandatoryFields);
   const selected = new Set(state.assetMandatoryFields);
   target.innerHTML = `
-    <p class="settings-note compact">Ticked fields are required for Asset Register dashboard completion. Blank mandatory cells are highlighted in the register.</p>
+    <p class="settings-note compact">${selected.size} Asset Register field(s) mandatory. Selected fields are used for dashboard completion and blank mandatory cells are highlighted.</p>
     <div class="asset-mandatory-grid">
-      ${editorColumnLabels.equipment
+      ${listColumns.equipment
         .map(
-          ([fieldKey, label]) => `
-            <button
-              class="asset-mandatory-toggle ${selected.has(fieldKey) ? "selected" : ""}"
-              data-asset-mandatory-toggle="${escapeHtml(fieldKey)}"
-              type="button"
-              aria-pressed="${selected.has(fieldKey) ? "true" : "false"}"
-            >
-              ${escapeHtml(label)}
-            </button>
-          `,
+          (fieldKey, index) => {
+            const fieldLabel = editorColumnLabels.equipment[index] || fieldKey;
+            return `
+            <label class="asset-mandatory-check matrix-check">
+              <input
+                type="checkbox"
+                data-asset-mandatory-field="${escapeHtml(fieldKey)}"
+                ${selected.has(fieldKey) ? "checked" : ""}
+              />
+              <span>${escapeHtml(fieldLabel)}</span>
+            </label>
+          `;
+          },
         )
         .join("")}
     </div>
@@ -1769,25 +1776,39 @@ function renderAssetMandatoryFields() {
       <button class="secondary" data-asset-mandatory-preset="none" type="button">Clear Mandatory Fields</button>
     </div>
   `;
+  target.querySelectorAll("[data-asset-mandatory-preset]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const preset = button.dataset.assetMandatoryPreset;
+      if (preset === "all") state.assetMandatoryFields = [...listColumns.equipment];
+      else if (preset === "none") state.assetMandatoryFields = [];
+      else state.assetMandatoryFields = [...defaultAssetMandatoryFields];
+      renderAssetMandatoryFields();
+      createTableRows("equipment", currentManual().equipment);
+      persistAndRender();
+    });
+  });
 }
 
 async function populateLoginProjectSelect() {
   const select = document.querySelector("#loginProjectSelect");
   if (!select) return;
   const openButton = document.querySelector("#loginOpenProject");
+  const localNames = Object.keys(loadProjectDatabase()).sort();
   if (currentSupabaseUser && cloudModeAvailable()) {
     const records = await refreshCloudProjectRecords();
     select.innerHTML = [
-      `<option value="">${records.length ? "Select saved project..." : "No saved projects yet"}</option>`,
-      ...records.map((record) => `<option value="${escapeHtml(cloudProjectOptionValue(record))}">${escapeHtml(record.name)}</option>`),
+      `<option value="">${records.length || localNames.length ? "Select saved project..." : "No saved projects yet"}</option>`,
+      ...records.map((record) => `<option value="${escapeHtml(cloudProjectOptionValue(record))}">Supabase - ${escapeHtml(record.name)}</option>`),
+      ...localNames.map((name) => `<option value="${escapeHtml(localProjectOptionValue(name))}">Local - ${escapeHtml(name)}</option>`),
     ].join("");
     if (openButton) openButton.disabled = !select.value;
     return;
   }
-  const names = Object.keys(loadProjectDatabase()).sort();
   select.innerHTML = [
-    `<option value="">${names.length ? "Select saved project..." : "No saved projects yet"}</option>`,
-    ...names.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`),
+    `<option value="">${localNames.length ? "Select saved project..." : "No saved projects yet"}</option>`,
+    ...localNames.map((name) => `<option value="${escapeHtml(localProjectOptionValue(name))}">${escapeHtml(name)}</option>`),
   ].join("");
   if (openButton) openButton.disabled = !select.value;
 }
@@ -1875,14 +1896,20 @@ async function initialiseLoginGate() {
 
 async function loadProjectRecord(name) {
   let record = null;
-  if (currentSupabaseUser && cloudModeAvailable()) {
-    const id = String(name || "").startsWith("cloud:") ? String(name).slice(6) : "";
+  const selectedName = String(name || "");
+  if (selectedName.startsWith("local:")) {
+    const localName = selectedName.slice(6);
+    record = loadProjectDatabase()[localName];
+    if (record) record = { ...record, name: localName };
+  } else if (currentSupabaseUser && cloudModeAvailable()) {
+    const id = selectedName.startsWith("cloud:") ? selectedName.slice(6) : "";
     if (!cloudProjectRecords.some((item) => item.id === id || item.name === name)) {
       await refreshCloudProjectRecords();
     }
     record = cloudProjectRecords.find((item) => item.id === id || item.name === name);
   } else {
-    record = loadProjectDatabase()[name];
+    record = loadProjectDatabase()[selectedName];
+    if (record) record = { ...record, name: selectedName };
   }
   if (!record) {
     alert("That saved project could not be found. Try selecting it again, or create a new project.");

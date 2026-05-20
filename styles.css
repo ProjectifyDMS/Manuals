@@ -1317,56 +1317,43 @@ textarea {
   margin-top: 12px;
 }
 
-.asset-mandatory-toggle {
+.asset-mandatory-check {
   align-items: center;
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 8px;
-  color: #223044;
   cursor: pointer;
   display: flex;
   gap: 9px;
   justify-content: flex-start;
   min-height: 42px;
+  min-width: 0;
   padding: 10px 12px;
-  text-align: left;
   width: 100%;
 }
 
-.asset-mandatory-toggle::before {
-  border: 2px solid #91a3b0;
-  border-radius: 4px;
-  content: "";
-  display: inline-block;
-  flex: 0 0 auto;
-  height: 16px;
-  width: 16px;
-}
-
-.asset-mandatory-toggle.selected {
-  background: #eaf7ee;
+.asset-mandatory-check:hover,
+.asset-mandatory-check:focus-within {
+  background: #eef8f0;
   border-color: #22c55e;
+  outline: 2px solid rgba(34, 197, 94, 0.22);
+  outline-offset: 2px;
 }
 
-.asset-mandatory-toggle.selected::before {
-  background: #22c55e;
-  border-color: #15803d;
-  box-shadow: inset 0 0 0 3px #eaf7ee;
+.asset-mandatory-check span {
+  color: #223044;
+  display: inline-block;
+  flex: 1 1 auto;
+  font-size: 0.86rem;
+  font-weight: 800;
+  line-height: 1.25;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .mandatory-field-cell {
   background: #fff8ed;
-}
-
-.mandatory-field-missing {
-  background: #fff0f0;
-  box-shadow: inset 3px 0 0 #dc2626;
-}
-
-.mandatory-field-missing input,
-.mandatory-field-missing select,
-.mandatory-field-missing textarea {
-  border-color: #dc2626;
 }
 
 .file-picker {
