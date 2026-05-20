@@ -709,7 +709,7 @@ const listColumns = {
 
 const equipmentEditorColumns = [
   "assetId",
-  "parentAssetId",
+  "__vbisCode",
   "description",
   "serviceName",
   "subservice",
@@ -1551,6 +1551,10 @@ function currentUserLabel() {
   }
   const profile = loadLoginProfile();
   return profile?.username || "Local user";
+}
+
+function currentAssetUpdatedUser() {
+  return currentUserLabel() || "Local user";
 }
 
 function updateCurrentUserDisplay() {
@@ -2817,6 +2821,14 @@ function createTableRows(listName, rows) {
     const tr = document.createElement("tr");
     if (listName === "maintenance" || listName === "warranties") tr.dataset.linkedAssetRow = String(rowIndex);
     editorColumns.forEach((column) => {
+      if (column === "__vbisCode") {
+        const codeCell = document.createElement("td");
+        codeCell.className = "derived-cell vbis-code-cell";
+        codeCell.dataset.label = "VBIS Code";
+        codeCell.textContent = vbisCodeSummaryForAssetRow(row) || "Not selected";
+        tr.appendChild(codeCell);
+        return;
+      }
       const columnIndex = listColumns[listName].indexOf(column);
       if (column === "documentUrl") return;
       const td = document.createElement("td");
@@ -2959,6 +2971,7 @@ function createTableRows(listName, rows) {
         select.value = currentValue;
         select.addEventListener("change", () => {
           targetData[rowIndex][columnIndex] = select.value;
+          targetData[rowIndex][21] = currentAssetUpdatedUser();
           clearAssetServiceChildren(targetData[rowIndex], column);
           renderEditors();
           persistAndRender();
@@ -2986,6 +2999,7 @@ function createTableRows(listName, rows) {
         select.value = currentValue;
         select.addEventListener("change", () => {
           targetData[rowIndex][columnIndex] = select.value;
+          targetData[rowIndex][21] = currentAssetUpdatedUser();
           clearAssetLocationChildren(targetData[rowIndex], column);
           renderEditors();
           persistAndRender();
@@ -2996,6 +3010,26 @@ function createTableRows(listName, rows) {
       }
       const input = document.createElement(longField || (listName === "equipment" && column === "description") ? "textarea" : "input");
       if (listName === "equipment" && column === "description") input.rows = 3;
+      if (listName === "equipment" && column === "updatedUser" && !row[columnIndex]) {
+        targetData[rowIndex][columnIndex] = currentAssetUpdatedUser();
+        row[columnIndex] = targetData[rowIndex][columnIndex];
+      }
+      if (listName === "equipment" && ["quantity", "retailPrice", "lifeExpectancyYears"].includes(column)) {
+        input.type = "text";
+        input.inputMode = "decimal";
+        input.pattern = column === "retailPrice" ? "[0-9]*[.]?[0-9]*" : "[0-9]*";
+        input.addEventListener("keydown", (event) => {
+          const allowedKeys = ["Backspace", "Delete", "Tab", "ArrowLeft", "ArrowRight", "Home", "End"];
+          const isShortcut = event.ctrlKey || event.metaKey;
+          if (allowedKeys.includes(event.key) || isShortcut) return;
+          const isDigit = /^[0-9]$/.test(event.key);
+          const isDecimal = column === "retailPrice" && event.key === "." && !input.value.includes(".");
+          if (!isDigit && !isDecimal) event.preventDefault();
+        });
+      }
+      if (listName === "equipment" && ["installDate", "warrantyExpiryDate", "updatedDate"].includes(column)) {
+        input.type = "date";
+      }
       if ((listName === "maintenance" || listName === "warranties") && columnIndex === 0) {
         input.setAttribute("list", "assetIdOptions");
         input.placeholder = "Pick or type Asset ID";
@@ -3012,11 +3046,26 @@ function createTableRows(listName, rows) {
         input.placeholder = "Hours, Days, Months, Years";
       }
       input.value = row[columnIndex] || "";
+      if (listName === "equipment" && column === "updatedUser") {
+        input.readOnly = true;
+        input.title = "Automatically populated from the logged-in user.";
+      }
       input.required = assetFieldIsMandatory;
       if (assetFieldIsMandatory) input.title = "Mandatory field";
       if (!input.rows) input.rows = 2;
       input.addEventListener("input", () => {
-        targetData[rowIndex][columnIndex] = input.value;
+        let nextValue = input.value;
+        if (listName === "equipment" && ["quantity", "retailPrice", "lifeExpectancyYears"].includes(column)) {
+          nextValue = nextValue.replace(/[^0-9.]/g, "");
+          const parts = nextValue.split(".");
+          if (parts.length > 2) nextValue = `${parts.shift()}.${parts.join("")}`;
+          if (column === "quantity" || column === "lifeExpectancyYears") nextValue = nextValue.split(".")[0];
+          if (input.value !== nextValue) input.value = nextValue;
+        }
+        targetData[rowIndex][columnIndex] = nextValue;
+        if (listName === "equipment" && column !== "updatedUser") {
+          targetData[rowIndex][21] = currentAssetUpdatedUser();
+        }
         if ((listName === "maintenance" || listName === "warranties") && columnIndex === 0) renderLinkedAssetDescriptionCells();
         if (listName === "siteDetails") renderSiteDetailDatalists();
         if (listName === "maintenance" && column === "unit") {
@@ -3045,13 +3094,6 @@ function createTableRows(listName, rows) {
         tr.appendChild(description);
       }
     });
-    if (listName === "equipment") {
-      const codeCell = document.createElement("td");
-      codeCell.className = "derived-cell vbis-code-cell";
-      codeCell.dataset.label = "VBIS Code";
-      codeCell.textContent = vbisCodeSummaryForAssetRow(row) || "Not selected";
-      tr.appendChild(codeCell);
-    }
     const action = document.createElement("td");
     action.className = "editor-action-field";
     action.dataset.label = "Action";
@@ -3749,6 +3791,21 @@ function isAssetMandatoryField(column) {
   return normalizeAssetMandatoryFields(state.assetMandatoryFields).includes(column);
 }
 
+function missingAssetMandatoryFields(row = []) {
+  return assetMandatoryColumnIndexes()
+    .filter((index) => !filled(row[index]))
+    .map((index) => assetHeaders[index] || editorLabel("equipment", index) || `Column ${index + 1}`);
+}
+
+function canAddAssetRecord() {
+  const rows = currentManual().equipment || [];
+  const incompleteRowIndex = rows.findIndex((row) => missingAssetMandatoryFields(row).length);
+  if (incompleteRowIndex < 0) return true;
+  const missing = missingAssetMandatoryFields(rows[incompleteRowIndex]).slice(0, 6).join(", ");
+  alert(`Complete the mandatory Asset Register fields before adding another asset.\n\nAsset row ${incompleteRowIndex + 1} needs: ${missing}`);
+  return false;
+}
+
 function dashboardSection(label, completion, tab = "") {
   const percent = Math.round((completion.complete / completion.total) * 100);
   const outstanding = completion.outstanding.length ? completion.outstanding.slice(0, 4) : ["Complete"];
@@ -4156,15 +4213,15 @@ function assetRegisterHtml(rows, prefix = "asset") {
       (row, index) => `
         <table class="asset-register-table" id="${assetAnchor(row[0], index, prefix)}">
           <tbody>
-            <tr>${labelHtml("Asset ID", `<span class="asset-anchor">${textOrDash(row[0])}</span>`)}${labelValue("Parent Asset ID", row[1])}</tr>
+            <tr>${labelHtml("Asset ID", `<span class="asset-anchor">${textOrDash(row[0])}</span>`)}${labelValue("VBIS Code", vbisCodeSummaryForAssetRow(row))}</tr>
             <tr>${labelValue("Description", row[2])}${labelValue("Make", row[10])}</tr>
             <tr>${labelValue("Discipline Name", row[3])}${labelValue("Product Name", row[4])}</tr>
             <tr>${labelValue("Sub-Type Name", row[22])}${labelValue("Sub-Sub Type Name", row[23])}</tr>
-            <tr>${labelValue("VBIS Code", vbisCodeSummaryForAssetRow(row))}${labelValue("Model", row[11])}</tr>
-            <tr>${labelValue("Make", row[10])}${labelValue("Serial Number", row[12])}</tr>
-            <tr>${labelValue("Supplier", row[13])}${labelValue("Site Name", row[5])}</tr>
-            <tr>${labelValue("Structure", row[6])}${labelValue("Level Name", row[7])}</tr>
-            <tr>${labelValue("Space Name", row[8])}${labelValue("Location Description", row[9])}</tr>
+            <tr>${labelValue("Make", row[10])}${labelValue("Model", row[11])}</tr>
+            <tr>${labelValue("Serial Number", row[12])}${labelValue("Supplier", row[13])}</tr>
+            <tr>${labelValue("Site Name", row[5])}${labelValue("Structure", row[6])}</tr>
+            <tr>${labelValue("Level Name", row[7])}${labelValue("Space Name", row[8])}</tr>
+            <tr>${labelValue("Location Description", row[9])}${labelValue("Quantity", row[14])}</tr>
             <tr>${labelValue("Quantity", row[14])}${labelValue("Retail Price $", row[15])}</tr>
             <tr>${labelValue("Install Date", row[16])}${labelValue("Wty Expiry Date", row[17])}</tr>
             <tr>${labelValue("Life Expectancy (yrs)", row[18])}${labelValue("Updated Date", row[20])}</tr>
@@ -4966,8 +5023,12 @@ document.querySelectorAll(".tab").forEach((tab) => {
 document.querySelectorAll(".add-row").forEach((button) => {
   button.addEventListener("click", () => {
     const listName = button.dataset.list;
+    if (listName === "equipment" && !canAddAssetRecord()) return;
     const targetData = listName === "siteDetails" ? state.siteDetails : currentManual()[listName];
-    targetData.push(listColumns[listName].map(() => ""));
+    const blankRow = listColumns[listName].map(() => "");
+    if (listName === "equipment") blankRow[21] = currentAssetUpdatedUser();
+    if (listName === "equipment") targetData.unshift(blankRow);
+    else targetData.push(blankRow);
     renderEditors();
     persistAndRender();
   });
