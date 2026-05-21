@@ -4,6 +4,7 @@ const PROJECT_DATABASE_KEY = "om-manual-builder-project-database-v1";
 const LOGIN_PROFILE_KEY = "om-manual-builder-local-login-v1";
 const LOGIN_SESSION_KEY = "om-manual-builder-login-session-v1";
 const LOGIN_TIME_KEY = "om-manual-builder-login-time-v1";
+const ACTIVE_TAB_KEY = "om-manual-builder-active-tab-v1";
 const SUPABASE_URL = "https://ixqastmhzqzseokrvsxd.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_IULuuPMBDRN4BmQ-zFscFw_5b7ftrDc";
 const SUPABASE_PROJECTS_TABLE = "om_projects";
@@ -119,11 +120,24 @@ const reviewSectionConfig = [
   ["documents", "Documents"],
   ["safety", "Safety"],
 ];
+
+const sectionComplianceConfig = [
+  ["project", "Project Details", ["project", "cover", "manual", "owner", "fm"]],
+  ["introduction", "Intro & Scope", ["intro", "introduction", "scope", "included works", "exclusions", "variations"]],
+  ["contacts", "Key Contacts", ["contacts", "contractor", "supplier", "trade"]],
+  ["equipment", "Assets", ["assets", "asset", "asset register", "equipment"]],
+  ["technical", "Operations & Technical Data", ["operations", "technical", "technical data", "operating instructions"]],
+  ["maintenance", "Maintenance", ["maintenance", "routine", "frequency", "statutory"]],
+  ["commissioning", "Commissioning", ["commissioning", "testing", "test", "witness"]],
+  ["warranties", "Warranties", ["warranty", "warranties"]],
+  ["certificates", "Certificates", ["certificate", "certificates", "certification"]],
+  ["compliance", "Compliance", ["compliance", "standard", "regulation", "statutory"]],
+  ["safety", "Safety", ["safety", "whs", "emergency", "risk"]],
+  ["spares", "Spare Parts", ["spare", "spares", "spare parts"]],
+  ["asBuilts", "As Builts", ["as built", "as-built", "drawing", "model", "concealed"]],
+  ["documents", "Documents", ["document", "documents", "manual", "attachment"]],
+];
 const aiHelperSections = {
-  project: {
-    label: "Project Details",
-    fields: [["projectSummary", "Project summary"]],
-  },
   introduction: {
     label: "Intro & Scope",
     fields: [
@@ -134,8 +148,6 @@ const aiHelperSections = {
       ["contractVariations", "Contract variations"],
     ],
   },
-  contacts: { label: "Key Contacts", fields: [] },
-  equipment: { label: "Assets", fields: [] },
   maintenance: { label: "Maintenance", fields: [] },
   technical: {
     label: "Operations & Technical Data",
@@ -239,6 +251,9 @@ const reviewDefaults = {
   decisionComment: "",
   decidedBy: "",
   decidedAt: "",
+  submittedBy: "",
+  submittedAt: "",
+  auditTrail: [],
 };
 
 function createDefaultReviews() {
@@ -436,12 +451,64 @@ const sampleData = {
   folders: {},
 };
 
+function sampleServiceClassifications() {
+  return [
+    ...cloneData(defaultServiceClassifications),
+    ["EL", "Electrical Services", "EL-Ltg", "Lighting", "EL-Ltg-Lum", "Luminaires", "EL-Ltg-Lum-Pnl", "LED Panel Luminaire"],
+    ["EL", "Electrical Services", "EL-EmL", "Emergency Lighting", "EL-EmL-Lum", "Emergency Luminaires", "EL-EmL-Lum-Spf", "Spitfire Luminaire"],
+    ["ME", "Mechanical Services", "ME-AHU", "Air Handling", "ME-AHU-Unit", "Air Handling Units", "ME-AHU-Unit-Pkg", "Packaged AHU"],
+    ["ME", "Mechanical Services", "ME-Ctl", "Controls", "ME-Ctl-VSD", "Variable Speed Drives", "ME-Ctl-VSD-HVAC", "HVAC VSD"],
+    ["FP", "Fire Protection Services", "FP-Wet", "Wet Fire", "FP-Wet-FHR", "Fire Hose Reels", "FP-Wet-FHR-Cab", "Cabinet Hose Reel"],
+    ["FP", "Fire Protection Services", "FP-Wet", "Wet Fire", "FP-Wet-Spr", "Sprinkler Systems", "FP-Wet-Spr-Val", "Control Valve Set"],
+    ["HY", "Hydraulic Services", "HY-DHW", "Domestic Hot Water", "HY-DHW-Plant", "Hot Water Plant", "HY-DHW-Plant-Com", "Commercial Storage Plant"],
+    ["HY", "Hydraulic Services", "HY-DHW", "Domestic Hot Water", "HY-DHW-TMV", "Thermostatic Mixing Valves", "HY-DHW-TMV-Basin", "Basin TMV"],
+    ["FF", "FF&E", "FF-Fur", "Furniture", "FF-Fur-Wks", "Workstations", "FF-Fur-Wks-Mod", "Modular Workstation"],
+    ["FF", "FF&E", "FF-Fur", "Furniture", "FF-Fur-Sea", "Seating", "FF-Fur-Sea-Task", "Task Chair"],
+  ];
+}
+
+function sampleReview(stage = "Draft", user = "Local user", comment = "") {
+  const dates = {
+    submitted: "2026-05-19T23:15:00.000Z",
+    approved: "2026-05-20T01:45:00.000Z",
+    rejected: "2026-05-20T03:10:00.000Z",
+  };
+  const review = cloneData(reviewDefaults);
+  review.stage = stage;
+  if (stage !== "Draft") {
+    review.originator = user;
+    review.submittedBy = user;
+    review.submittedDate = "2026-05-20";
+    review.submittedAt = dates.submitted;
+    review.auditTrail.push({ action: "Submitted", by: user, at: dates.submitted, comment: comment || "Submitted for section review." });
+  }
+  if (stage === "Approved") {
+    review.finalStatus = "Approved";
+    review.finalApprover = "Alex Reviewer";
+    review.finalApprovalDate = "2026-05-20";
+    review.decidedBy = "Alex Reviewer";
+    review.decidedAt = dates.approved;
+    review.decisionComment = "Approved for sample handover issue.";
+    review.auditTrail.push({ action: "Approved", by: "Alex Reviewer", at: dates.approved, comment: review.decisionComment });
+  }
+  if (stage === "Rejected / Revise") {
+    review.finalStatus = "Revise";
+    review.decidedBy = "Alex Reviewer";
+    review.decidedAt = dates.rejected;
+    review.decisionComment = "Revise sample evidence before final approval.";
+    review.auditTrail.push({ action: "Rejected", by: "Alex Reviewer", at: dates.rejected, comment: review.decisionComment });
+  }
+  return review;
+}
+
 function sampleAssetRow({
   id,
   parent = "",
   description,
   service,
   subservice,
+  subType = "",
+  subSubType = "",
   site = "Main Building",
   level = "Level 1",
   space = "Plant / Service Area",
@@ -479,7 +546,9 @@ function sampleAssetRow({
     life,
     reference,
     "2026-05-04",
-    supplier,
+    "Casey Originator",
+    subType,
+    subSubType,
   ];
 }
 
@@ -525,6 +594,17 @@ function buildSampleFolder({ discipline, trade = "", subTrade = "", assets, supp
         ["Manual", `${primaryAsset[2]} manufacturer manual`, `${primaryAsset[0]}-MAN-001`, "Supplier operation and maintenance manual."],
         ["Datasheet", `${title} datasheet`, `${slug(discipline).toUpperCase()}-DS-001`, "Product data and technical reference."],
       ],
+      attachments: {
+        technical: [[`${primaryAsset[0]} technical data sheet.pdf`, `https://projectifydms.github.io/Manuals/attachments/${slug(discipline)}/${primaryAsset[0]}-technical-data.pdf`]],
+        spares: [[`${primaryAsset[0]} spare parts list.pdf`, `https://projectifydms.github.io/Manuals/attachments/${slug(discipline)}/${primaryAsset[0]}-spares.pdf`]],
+        safety: [[`${primaryAsset[0]} safe work method statement.pdf`, `https://projectifydms.github.io/Manuals/attachments/${slug(discipline)}/${primaryAsset[0]}-safety.pdf`]],
+      },
+      reviews: {
+        ...createDefaultReviews(),
+        introduction: sampleReview("Approved", "Casey Originator"),
+        equipment: sampleReview("Submitted", "Casey Originator", "Asset register ready for review."),
+        maintenance: sampleReview("Rejected / Revise", "Casey Originator"),
+      },
     },
   };
 }
@@ -554,7 +634,7 @@ function buildSampleManualData() {
     ["Sample Site", "Main Building", "Level 5", "Plant Room", "Mechanical plantroom serving the north wing."],
     ["Sample Site", "Main Building", "Amenities", "Riser Cupboard", "Hydraulic riser cupboard adjacent amenities."],
   ];
-  next.serviceClassifications = cloneData(defaultServiceClassifications);
+  next.serviceClassifications = sampleServiceClassifications();
   next.selectedFolder = { discipline: "Electrical", trade: "Lighting", subTrade: "" };
   next.folders = {};
 
@@ -563,8 +643,8 @@ function buildSampleManualData() {
       discipline: "Electrical",
       trade: "Lighting",
       assets: [
-        sampleAssetRow({ id: "LTG-01", description: "LED panel luminaire", service: "Electrical Services", subservice: "Lighting", level: "Level 1", space: "Open Office", location: "Ceiling grid throughout Level 1 open office.", make: "Pierlite", model: "Aether LED 600", serial: "PL600-BATCH01", supplier: "Brightline Electrical", quantity: "36", retailPrice: "185", life: "10", reference: "Lighting layout, luminaire schedule, and AS/NZS 3000 installation records" }),
-        sampleAssetRow({ id: "EML-01", description: "Emergency luminaire", service: "Electrical Services", subservice: "Emergency Lighting", level: "Level 1", space: "Corridor", location: "Corridor exits and fire stair approaches.", make: "Stanilite", model: "Spitfire LED", serial: "SFLED-BATCH02", supplier: "Brightline Electrical", quantity: "14", retailPrice: "245", life: "8", reference: "Emergency lighting test schedule to AS/NZS 2293" }),
+        sampleAssetRow({ id: "LTG-01", description: "LED panel luminaire", service: "Electrical Services", subservice: "Lighting", subType: "Luminaires", subSubType: "LED Panel Luminaire", level: "Level 1", space: "Open Office", location: "Ceiling grid throughout Level 1 open office.", make: "Pierlite", model: "Aether LED 600", serial: "PL600-BATCH01", supplier: "Brightline Electrical", quantity: "36", retailPrice: "185", life: "10", reference: "Lighting layout, luminaire schedule, and AS/NZS 3000 installation records" }),
+        sampleAssetRow({ id: "EML-01", description: "Emergency luminaire", service: "Electrical Services", subservice: "Emergency Lighting", subType: "Emergency Luminaires", subSubType: "Spitfire Luminaire", level: "Level 1", space: "Corridor", location: "Corridor exits and fire stair approaches.", make: "Stanilite", model: "Spitfire LED", serial: "SFLED-BATCH02", supplier: "Brightline Electrical", quantity: "14", retailPrice: "245", life: "8", reference: "Emergency lighting test schedule to AS/NZS 2293" }),
       ],
       supplier: "Brightline Electrical",
       technicalData: "Lighting circuits are 230 V AC and installed to AS/NZS 3000. Emergency lighting is documented for routine inspection and discharge testing to AS/NZS 2293.",
@@ -575,8 +655,8 @@ function buildSampleManualData() {
       trade: "HVAC",
       subTrade: "Air Handling Units",
       assets: [
-        sampleAssetRow({ id: "AHU-01", description: "Air handling unit", service: "Mechanical Services", subservice: "Air Handling", site: "Main Building", level: "Level 5", space: "Plant Room", location: "Level 5 mechanical plantroom serving the north wing.", make: "Temperzone", model: "OPA-2500", serial: "TZ-AHU-2500-01", supplier: "Atlas Mechanical", quantity: "1", retailPrice: "42500", life: "15", reference: "Mechanical services drawings and AHU technical manual" }),
-        sampleAssetRow({ id: "VSD-01", parent: "AHU-01", description: "Supply fan variable speed drive", service: "Mechanical Services", subservice: "Controls", site: "Main Building", level: "Level 5", space: "Plant Room", location: "Mounted in AHU-01 local control panel.", make: "Danfoss", model: "VLT HVAC Drive FC102", serial: "FC102-8871", supplier: "Atlas Mechanical", quantity: "1", retailPrice: "3850", warrantyExpiry: "2028-05-03", life: "10", reference: "VSD datasheet and controls commissioning record" }),
+        sampleAssetRow({ id: "AHU-01", description: "Air handling unit", service: "Mechanical Services", subservice: "Air Handling", subType: "Air Handling Units", subSubType: "Packaged AHU", site: "Main Building", level: "Level 5", space: "Plant Room", location: "Level 5 mechanical plantroom serving the north wing.", make: "Temperzone", model: "OPA-2500", serial: "TZ-AHU-2500-01", supplier: "Atlas Mechanical", quantity: "1", retailPrice: "42500", life: "15", reference: "Mechanical services drawings and AHU technical manual" }),
+        sampleAssetRow({ id: "VSD-01", parent: "AHU-01", description: "Supply fan variable speed drive", service: "Mechanical Services", subservice: "Controls", subType: "Variable Speed Drives", subSubType: "HVAC VSD", site: "Main Building", level: "Level 5", space: "Plant Room", location: "Mounted in AHU-01 local control panel.", make: "Danfoss", model: "VLT HVAC Drive FC102", serial: "FC102-8871", supplier: "Atlas Mechanical", quantity: "1", retailPrice: "3850", warrantyExpiry: "2028-05-03", life: "10", reference: "VSD datasheet and controls commissioning record" }),
       ],
       supplier: "Atlas Mechanical",
       technicalData: "Air handling equipment is operated through the BMS with maintenance access requirements documented to NCC and WHS expectations. Hygiene and inspection tasks reference AS/NZS 3666 where applicable.",
@@ -586,8 +666,8 @@ function buildSampleManualData() {
       discipline: "Fire Services",
       trade: "Wet Fire",
       assets: [
-        sampleAssetRow({ id: "FHR-01", description: "Fire hose reel", service: "Fire Protection Services", subservice: "Wet Fire", level: "Level 1", space: "Corridor", location: "Level 1 corridor adjacent fire stair entry.", make: "FlameStop", model: "36 m FHR cabinet", serial: "FHR-BATCH03", supplier: "Redline Fire", quantity: "3", retailPrice: "980", life: "20", reference: "Wet fire services drawings and AS 1851 maintenance schedule" }),
-        sampleAssetRow({ id: "SPR-01", description: "Sprinkler control valve set", service: "Fire Protection Services", subservice: "Wet Fire", level: "Ground Floor", space: "Fire Pump Room", location: "Ground floor fire pump room valve assembly.", make: "Tyco", model: "CVS-150", serial: "CVS150-5510", supplier: "Redline Fire", quantity: "1", retailPrice: "12800", life: "25", reference: "Sprinkler valve commissioning sheet and AS 2118.1 design records" }),
+        sampleAssetRow({ id: "FHR-01", description: "Fire hose reel", service: "Fire Protection Services", subservice: "Wet Fire", subType: "Fire Hose Reels", subSubType: "Cabinet Hose Reel", level: "Level 1", space: "Corridor", location: "Level 1 corridor adjacent fire stair entry.", make: "FlameStop", model: "36 m FHR cabinet", serial: "FHR-BATCH03", supplier: "Redline Fire", quantity: "3", retailPrice: "980", life: "20", reference: "Wet fire services drawings and AS 1851 maintenance schedule" }),
+        sampleAssetRow({ id: "SPR-01", description: "Sprinkler control valve set", service: "Fire Protection Services", subservice: "Wet Fire", subType: "Sprinkler Systems", subSubType: "Control Valve Set", level: "Ground Floor", space: "Fire Pump Room", location: "Ground floor fire pump room valve assembly.", make: "Tyco", model: "CVS-150", serial: "CVS150-5510", supplier: "Redline Fire", quantity: "1", retailPrice: "12800", life: "25", reference: "Sprinkler valve commissioning sheet and AS 2118.1 design records" }),
       ],
       supplier: "Redline Fire",
       technicalData: "Wet fire systems include fire hose reels, sprinkler valve sets, pressure gauges, drains, and isolation valves documented for inspection routines generally aligned with AS 1851.",
@@ -597,8 +677,8 @@ function buildSampleManualData() {
       discipline: "Hydraulics",
       trade: "Domestic Water",
       assets: [
-        sampleAssetRow({ id: "HWS-01", description: "Domestic hot water plant", service: "Hydraulic Services", subservice: "Domestic Hot Water", level: "Ground Floor", space: "Hydraulic Plant Room", location: "Packaged hot water plant in hydraulic plant room.", make: "Rheem", model: "Commercial 610", serial: "RH610-4402", supplier: "ClearFlow Hydraulics", quantity: "1", retailPrice: "18600", life: "15", reference: "Hydraulic services schematic and AS/NZS 3500 installation records" }),
-        sampleAssetRow({ id: "TMV-01", description: "Thermostatic mixing valve", service: "Hydraulic Services", subservice: "Domestic Hot Water", level: "Amenities", space: "Riser Cupboard", location: "Amenities riser cupboard serving basin outlets.", make: "Enware", model: "Aquamix", serial: "TMV-7780", supplier: "ClearFlow Hydraulics", quantity: "6", retailPrice: "420", life: "10", reference: "TMV commissioning register and temperature test sheet" }),
+        sampleAssetRow({ id: "HWS-01", description: "Domestic hot water plant", service: "Hydraulic Services", subservice: "Domestic Hot Water", subType: "Hot Water Plant", subSubType: "Commercial Storage Plant", level: "Ground Floor", space: "Hydraulic Plant Room", location: "Packaged hot water plant in hydraulic plant room.", make: "Rheem", model: "Commercial 610", serial: "RH610-4402", supplier: "ClearFlow Hydraulics", quantity: "1", retailPrice: "18600", life: "15", reference: "Hydraulic services schematic and AS/NZS 3500 installation records" }),
+        sampleAssetRow({ id: "TMV-01", description: "Thermostatic mixing valve", service: "Hydraulic Services", subservice: "Domestic Hot Water", subType: "Thermostatic Mixing Valves", subSubType: "Basin TMV", level: "Amenities", space: "Riser Cupboard", location: "Amenities riser cupboard serving basin outlets.", make: "Enware", model: "Aquamix", serial: "TMV-7780", supplier: "ClearFlow Hydraulics", quantity: "6", retailPrice: "420", life: "10", reference: "TMV commissioning register and temperature test sheet" }),
       ],
       supplier: "ClearFlow Hydraulics",
       technicalData: "Hydraulic systems include domestic cold water, hot water generation, tempered water outlets, isolation valves, and sanitary drainage connections installed to AS/NZS 3500 requirements.",
@@ -608,8 +688,8 @@ function buildSampleManualData() {
       discipline: "FF&E",
       trade: "Furniture",
       assets: [
-        sampleAssetRow({ id: "FUR-01", description: "Workstation furniture setting", service: "FF&E", subservice: "Furniture", level: "Level 1", space: "Open Office", location: "Level 1 open office workstation neighbourhoods.", make: "Schiavello", model: "Climate workstation", serial: "WF1500-BATCH01", supplier: "Studio Furnishings", quantity: "48", retailPrice: "1450", life: "10", reference: "FF&E schedule and supplier care instructions" }),
-        sampleAssetRow({ id: "CHR-01", description: "Task chair", service: "FF&E", subservice: "Furniture", level: "Level 1", space: "Open Office", location: "Level 1 open office workstation chairs.", make: "Zenith", model: "Rumba task chair", serial: "CHR-BATCH02", supplier: "Studio Furnishings", quantity: "48", retailPrice: "620", life: "8", reference: "Chair warranty and care guide" }),
+        sampleAssetRow({ id: "FUR-01", description: "Workstation furniture setting", service: "FF&E", subservice: "Furniture", subType: "Workstations", subSubType: "Modular Workstation", level: "Level 1", space: "Open Office", location: "Level 1 open office workstation neighbourhoods.", make: "Schiavello", model: "Climate workstation", serial: "WF1500-BATCH01", supplier: "Studio Furnishings", quantity: "48", retailPrice: "1450", life: "10", reference: "FF&E schedule and supplier care instructions" }),
+        sampleAssetRow({ id: "CHR-01", description: "Task chair", service: "FF&E", subservice: "Furniture", subType: "Seating", subSubType: "Task Chair", level: "Level 1", space: "Open Office", location: "Level 1 open office workstation chairs.", make: "Zenith", model: "Rumba task chair", serial: "CHR-BATCH02", supplier: "Studio Furnishings", quantity: "48", retailPrice: "620", life: "8", reference: "Chair warranty and care guide" }),
       ],
       supplier: "Studio Furnishings",
       technicalData: "FF&E items include workstation settings, task chairs, loose furniture, finishes selections, warranty references, and care requirements.",
@@ -657,7 +737,7 @@ function buildSampleManualData() {
     ffe.fields.scopeOfWorks = "";
     ffe.fields.safetyRequirements = "";
     ffe.fields.emergencyProcedures = "";
-    ffe.equipment = [];
+    if (ffe.equipment[0]) ffe.equipment[0][14] = "";
     ffe.maintenance = [];
     ffe.warranties = [];
     ffe.certificates = [];
@@ -1102,6 +1182,7 @@ function mergeSectionData(data = {}) {
       ...cloneData(reviewDefaults),
       ...(merged.reviews[key] || {}),
     };
+    if (!Array.isArray(merged.reviews[key].auditTrail)) merged.reviews[key].auditTrail = [];
   });
   return merged;
 }
@@ -1875,11 +1956,7 @@ function showLoginCredentialsStep() {
     ? "Create a local username and password for this browser."
     : "Enter your local username and password.";
   document.querySelector("#loginSubmit").textContent = isSetup ? "Create Login" : "Continue";
-  const confirmLabel = document.querySelector("#loginConfirmLabel");
-  const confirmInput = document.querySelector("#loginConfirmPassword");
-  confirmLabel.hidden = !isSetup;
-  if (confirmInput) confirmInput.required = isSetup;
-  ["#loginUsername", "#loginPassword", "#loginConfirmPassword"].forEach((selector) => {
+  ["#loginUsername", "#loginPassword"].forEach((selector) => {
     const field = document.querySelector(selector);
     if (field) field.value = "";
   });
@@ -1890,30 +1967,56 @@ function showLoginCredentialsStep() {
 async function showProjectSelectionStep() {
   document.querySelector("#loginCredentialsStep").hidden = true;
   document.querySelector("#loginProjectStep").hidden = false;
-  const newProjectInput = document.querySelector("#loginNewProjectName");
-  if (newProjectInput && !newProjectInput.value.trim()) {
-    newProjectInput.value = state.fields.projectName || "";
-  }
   await populateLoginProjectSelect();
   updateCurrentUserDisplay();
 }
 
 function unlockApp() {
   document.body.classList.remove("login-locked");
+  restoreActiveScreen();
   updateCurrentUserDisplay();
 }
 
-async function startNewProjectFromLogin() {
-  const name = document.querySelector("#loginNewProjectName")?.value.trim() || "Untitled Project";
-  state = cloneData(defaults);
-  state.fields.projectName = name;
-  createFolder(state.selectedFolder);
-  renderFolderPicker();
-  renderEditors();
-  persistAndRender();
-  await saveCurrentProjectRecord(name);
-  await renderProjectDatabaseControls(name);
-  unlockApp();
+function tabFromCurrentHash() {
+  const hash = String(window.location.hash || "").toLowerCase();
+  if (!hash) return "";
+  const matches = [
+    ["key-contacts", "contacts"],
+    ["contacts", "contacts"],
+    ["assets", "equipment"],
+    ["technical-data", "technical"],
+    ["technical", "technical"],
+    ["maintenance", "maintenance"],
+    ["warranties", "warranties"],
+    ["certificates", "certificates"],
+    ["compliance", "compliance"],
+    ["commissioning", "commissioning"],
+    ["spare-parts", "spares"],
+    ["spares", "spares"],
+    ["as-builts", "asBuilts"],
+    ["documents", "documents"],
+    ["safety", "safety"],
+    ["introduction", "introduction"],
+    ["project", "project"],
+    ["reports", "reports"],
+    ["dashboard", "dashboard"],
+  ];
+  return matches.find(([needle]) => hash.includes(needle))?.[1] || "";
+}
+
+function restoreActiveScreen() {
+  const hashTab = tabFromCurrentHash();
+  let tabName = hashTab;
+  if (!tabName) {
+    try {
+      tabName = sessionStorage.getItem(ACTIVE_TAB_KEY) || "";
+    } catch {
+      tabName = "";
+    }
+  }
+  if (!tabName) return;
+  const tab = document.querySelector(`.tab[data-tab="${tabName}"]`);
+  if (tab) activateTab(tab, { remember: false });
 }
 
 async function initialiseLoginGate() {
@@ -1925,8 +2028,7 @@ async function initialiseLoginGate() {
       await fetchCurrentUserRole();
       sessionStorage.setItem(LOGIN_SESSION_KEY, "active");
       ensureLoginTime();
-      document.body.classList.add("login-locked");
-      await showProjectSelectionStep();
+      unlockApp();
       await renderProjectDatabaseControls("");
       return;
     }
@@ -2021,6 +2123,20 @@ function formatDateAu(value) {
   });
 }
 
+function formatDateTimeAu(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return formatDateAu(text);
+  return date.toLocaleString("en-AU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function displayValue(value) {
   return formatDateAu(value);
 }
@@ -2081,6 +2197,16 @@ function arrayFromRow(columns, row) {
 
 function editorLabel(listName, columnIndex) {
   return editorColumnLabels[listName]?.[columnIndex] || "";
+}
+
+function isDateEditorColumn(listName, column) {
+  return (
+    (listName === "equipment" && ["installDate", "warrantyExpiryDate", "updatedDate"].includes(column)) ||
+    (listName === "commissioning" && column === "date") ||
+    (listName === "warranties" && ["start", "expiry"].includes(column)) ||
+    (listName === "certificates" && column === "issueDate") ||
+    (listName === "asBuilts" && column === "date")
+  );
 }
 
 function textOrDash(value) {
@@ -2491,7 +2617,7 @@ function openAttachmentUrl(url) {
   link.remove();
 }
 
-function activateTab(tab) {
+function activateTab(tab, options = {}) {
   if (tab?.dataset?.tab === "settings" && !userCanManageSettings()) {
     alert("Only users with Settings permission can open Settings.");
     return;
@@ -2500,6 +2626,13 @@ function activateTab(tab) {
   document.querySelectorAll(".tab, .panel").forEach((element) => element.classList.remove("active"));
   tab.classList.add("active");
   document.querySelector(`[data-panel="${tab.dataset.tab}"]`).classList.add("active");
+  if (options.remember !== false) {
+    try {
+      sessionStorage.setItem(ACTIVE_TAB_KEY, tab.dataset.tab || "");
+    } catch {
+      // Session storage can be unavailable in some browser privacy modes.
+    }
+  }
 }
 
 function addSectionNavigationButtons() {
@@ -2525,7 +2658,7 @@ function addSectionNavigationButtons() {
     const project = document.createElement("button");
     project.className = "secondary project-section";
     project.type = "button";
-    project.textContent = "Home";
+    project.textContent = "Dashboard";
     project.disabled = index === 0;
     project.addEventListener("click", () => goToTab(tabs[0]));
 
@@ -2579,27 +2712,87 @@ function addAiHelperPanels() {
   });
 }
 
+function reviewAuditTrailHtml(review) {
+  const auditTrail = Array.isArray(review.auditTrail) ? review.auditTrail : [];
+  const legacyEvents = [];
+  if (!auditTrail.length && review.submittedDate) {
+    legacyEvents.push({
+      action: "Submitted",
+      by: review.submittedBy || review.originator || "Not recorded",
+      at: review.submittedAt || review.submittedDate,
+      comment: review.notes || "",
+    });
+  }
+  if (!auditTrail.length && review.decidedAt) {
+    legacyEvents.push({
+      action: review.finalStatus === "Approved" ? "Approved" : "Rejected",
+      by: review.decidedBy || review.finalApprover || "Not recorded",
+      at: review.decidedAt,
+      comment: review.decisionComment || "",
+    });
+  }
+  const events = auditTrail.length ? auditTrail : legacyEvents;
+  if (!events.length) return `<p class="review-audit-empty">No audit trail recorded yet.</p>`;
+  return `
+    <ol class="review-audit-list">
+      ${events
+        .slice()
+        .reverse()
+        .map(
+          (event) => `
+            <li>
+              <strong>${escapeHtml(event.action || "Review update")}</strong>
+              <span>${escapeHtml(event.by || "Not recorded")} | ${escapeHtml(formatDateTimeAu(event.at) || "Not recorded")}</span>
+              ${event.comment ? `<em>${escapeHtml(event.comment)}</em>` : ""}
+            </li>
+          `,
+        )
+        .join("")}
+    </ol>
+  `;
+}
+
 function reviewPanelHtml(sectionKey, sectionLabel) {
   const review = currentManual().reviews?.[sectionKey] || cloneData(reviewDefaults);
   const canReview = userHasPermission("review");
   const canSubmit = userHasPermission("submit") && review.stage !== "Submitted" && review.stage !== "Approved";
   const statusText = review.stage || "Draft";
   const submittedText = review.submittedDate ? formatDateAu(review.submittedDate) : "Not submitted";
-  const decidedText = review.decidedAt ? formatDateAu(review.decidedAt) : "";
+  const decidedText = review.decidedAt ? formatDateTimeAu(review.decidedAt) : "No decision";
+  const submittedBy = review.submittedBy || review.originator || "Not recorded";
   return `
     <div class="review-gate-head">
       <div>
         <h3>Review & Approval</h3>
-        <p>${escapeHtml(sectionLabel)} status: <strong>${escapeHtml(statusText)}</strong> | Submitted: ${escapeHtml(submittedText)}</p>
-        ${review.decidedBy ? `<p>Last decision: ${escapeHtml(review.decidedBy)}${decidedText ? ` on ${escapeHtml(decidedText)}` : ""}</p>` : ""}
+        <p>${escapeHtml(sectionLabel)}</p>
       </div>
       <span class="review-stage-badge">${escapeHtml(statusText)}</span>
+    </div>
+    <div class="review-summary">
+      <div>
+        <span>Status</span>
+        <strong>${escapeHtml(statusText)}</strong>
+      </div>
+      <div>
+        <span>Submitted</span>
+        <strong>${escapeHtml(submittedText)}</strong>
+        ${review.submittedDate ? `<small>${escapeHtml(submittedBy)}</small>` : ""}
+      </div>
+      <div>
+        <span>Last Decision</span>
+        <strong>${escapeHtml(review.decidedBy || "No decision")}</strong>
+        ${review.decidedBy ? `<small>${escapeHtml(decidedText)}</small>` : ""}
+      </div>
     </div>
     <textarea class="review-comment" data-review-comment="${escapeHtml(sectionKey)}" rows="2" placeholder="Comments for submit, approve or reject...">${escapeHtml(review.decisionComment || review.notes || "")}</textarea>
     <div class="review-gate-actions">
       <button class="secondary review-submit" data-review-action="submit" data-review-section="${escapeHtml(sectionKey)}" type="button" ${canSubmit ? "" : "disabled"}>Submit for Approval</button>
       <button class="secondary review-approve" data-review-action="approve" data-review-section="${escapeHtml(sectionKey)}" type="button" ${canReview ? "" : "disabled"}>Approve</button>
       <button class="secondary review-reject" data-review-action="reject" data-review-section="${escapeHtml(sectionKey)}" type="button" ${canReview ? "" : "disabled"}>Reject</button>
+    </div>
+    <div class="review-audit">
+      <h4>Audit Trail</h4>
+      ${reviewAuditTrailHtml(review)}
     </div>
   `;
 }
@@ -2630,13 +2823,25 @@ function applyReviewAction(sectionKey, action) {
   const comment = document.querySelector(`[data-review-comment="${sectionKey}"]`)?.value.trim() || "";
   const today = new Date().toISOString().slice(0, 10);
   const now = new Date().toISOString();
+  if (!Array.isArray(review.auditTrail)) review.auditTrail = [];
+  const addAuditEvent = (label) => {
+    review.auditTrail.push({
+      action: label,
+      by: currentUserLabel(),
+      at: now,
+      comment,
+    });
+  };
   if (action === "submit") {
     if (!userHasPermission("submit")) return alert("Your role cannot submit sections for approval.");
     review.stage = "Submitted";
     review.originator = review.originator || currentUserLabel();
     review.submittedDate = today;
+    review.submittedBy = currentUserLabel();
+    review.submittedAt = now;
     review.decisionComment = comment;
     review.notes = comment;
+    addAuditEvent("Submitted");
   }
   if (action === "approve") {
     if (!userHasPermission("review")) return alert("Your role cannot approve sections.");
@@ -2648,6 +2853,7 @@ function applyReviewAction(sectionKey, action) {
     review.decidedAt = now;
     review.decisionComment = comment;
     review.notes = comment;
+    addAuditEvent("Approved");
   }
   if (action === "reject") {
     if (!userHasPermission("review")) return alert("Your role cannot reject sections.");
@@ -2657,6 +2863,7 @@ function applyReviewAction(sectionKey, action) {
     review.decidedAt = now;
     review.decisionComment = comment;
     review.notes = comment;
+    addAuditEvent("Rejected");
   }
   renderReviewPanels();
   renderDashboard();
@@ -2868,8 +3075,8 @@ function createTableRows(listName, rows) {
                     <li class="attachment-file-item">
                       <span>${escapeHtml(name)}</span>
                       <div class="attachment-file-actions">
-                        <button class="secondary attachment-open-file" data-file-index="${fileIndex}" type="button">Open</button>
-                        <button class="secondary attachment-remove-file" data-file-index="${fileIndex}" type="button">Remove</button>
+                        <button class="secondary attachment-open-file" data-file-index="${fileIndex}" type="button" aria-label="Open attached document ${escapeHtml(name)}">Open</button>
+                        <button class="secondary attachment-remove-file" data-file-index="${fileIndex}" type="button" aria-label="Remove attached document ${escapeHtml(name)}">Remove</button>
                       </div>
                     </li>
                   `,
@@ -2967,7 +3174,8 @@ function createTableRows(listName, rows) {
         ].join("");
         select.disabled = waitingForParent && !currentValue;
         select.required = assetFieldIsMandatory;
-        if (assetFieldIsMandatory) select.title = "Mandatory field";
+        select.setAttribute("aria-label", td.dataset.label || editorLabel(listName, columnIndex));
+        if (assetFieldIsMandatory) select.title = "Required field";
         select.value = currentValue;
         select.addEventListener("change", () => {
           targetData[rowIndex][columnIndex] = select.value;
@@ -2995,7 +3203,8 @@ function createTableRows(listName, rows) {
         ].join("");
         select.disabled = waitingForParent && !currentValue;
         select.required = assetFieldIsMandatory;
-        if (assetFieldIsMandatory) select.title = "Mandatory field";
+        select.setAttribute("aria-label", td.dataset.label || editorLabel(listName, columnIndex));
+        if (assetFieldIsMandatory) select.title = "Required field";
         select.value = currentValue;
         select.addEventListener("change", () => {
           targetData[rowIndex][columnIndex] = select.value;
@@ -3027,7 +3236,7 @@ function createTableRows(listName, rows) {
           if (!isDigit && !isDecimal) event.preventDefault();
         });
       }
-      if (listName === "equipment" && ["installDate", "warrantyExpiryDate", "updatedDate"].includes(column)) {
+      if (isDateEditorColumn(listName, column)) {
         input.type = "date";
       }
       if ((listName === "maintenance" || listName === "warranties") && columnIndex === 0) {
@@ -3046,6 +3255,7 @@ function createTableRows(listName, rows) {
         input.placeholder = "Hours, Days, Months, Years";
       }
       input.value = row[columnIndex] || "";
+      input.setAttribute("aria-label", td.dataset.label || editorLabel(listName, columnIndex));
       if (listName === "equipment" && column === "updatedUser") {
         input.readOnly = true;
         input.title = "Automatically populated from the logged-in user.";
@@ -3139,8 +3349,8 @@ function renderSectionAttachmentEditors() {
                     <li class="attachment-file-item">
                       <span>${escapeHtml(item.name)}</span>
                       <div class="attachment-file-actions">
-                        <button class="secondary section-attachment-open-file" data-index="${item.rowIndex}" data-file-index="${item.fileIndex}" type="button">Open</button>
-                        <button class="secondary section-attachment-remove-file" data-index="${item.rowIndex}" data-file-index="${item.fileIndex}" type="button">Remove</button>
+                        <button class="secondary section-attachment-open-file" data-index="${item.rowIndex}" data-file-index="${item.fileIndex}" type="button" aria-label="Open attached document ${escapeHtml(item.name)}">Open</button>
+                        <button class="secondary section-attachment-remove-file" data-index="${item.rowIndex}" data-file-index="${item.fileIndex}" type="button" aria-label="Remove attached document ${escapeHtml(item.name)}">Remove</button>
                       </div>
                     </li>
                   `,
@@ -3825,6 +4035,12 @@ function completionClass(percent) {
   return "empty";
 }
 
+function completionStatusLabel(percent) {
+  if (percent >= 100) return "Complete";
+  if (percent > 0) return "Part complete";
+  return "Not started";
+}
+
 function projectDashboardSection() {
   return dashboardSection(
     "Project",
@@ -3927,6 +4143,42 @@ function assetTotalsFromRows(rows = []) {
   };
 }
 
+function assetRegisterReportRows() {
+  return orderedManualFolders().flatMap((folder) =>
+    (folder.data.equipment || []).map((row) => ({
+      Discipline: folder.discipline || "",
+      Trade: folder.trade || "",
+      "Sub-Trade": folder.subTrade || "",
+      "Asset ID": row[0] || "",
+      "Parent Asset ID": row[1] || "",
+      Description: row[2] || "",
+      "VBIS Code": vbisCodeSummaryForAssetRow(row),
+      "Discipline Name": row[3] || "",
+      "Product Name": row[4] || "",
+      "Sub-Type Name": row[22] || "",
+      "Sub-Sub Type Name": row[23] || "",
+      "Site Name": row[5] || "",
+      "Structure Name": row[6] || "",
+      "Level Name": row[7] || "",
+      "Space Name": row[8] || "",
+      "Location Description": row[9] || "",
+      Make: row[10] || "",
+      Model: row[11] || "",
+      "Serial Number": row[12] || "",
+      Supplier: row[13] || "",
+      Quantity: row[14] || "",
+      "Retail Price": row[15] || "",
+      "Total Value": moneyValue(row[15]) * (moneyValue(row[14]) || 1),
+      "Install Date": row[16] || "",
+      "Warranty Expiry Date": row[17] || "",
+      "Life Expectancy (yrs)": row[18] || "",
+      "Reference Information": row[19] || "",
+      "Updated Date": row[20] || "",
+      "Updated User": row[21] || "",
+    })),
+  );
+}
+
 function dashboardTotals() {
   const folders = orderedManualFolders();
   const allRows = folders.flatMap((folder) => folder.data.equipment || []);
@@ -3950,6 +4202,179 @@ function complianceWarnings(manual = currentManual()) {
   if (!(manual.asBuilts || []).length) warnings.push("No as-built drawings or models recorded.");
   if (!filled(state.fields.fmReviewAccepted)) warnings.push("FM / Owner review acceptance is not recorded on the Project page.");
   return warnings;
+}
+
+function complianceItemsForSection(sectionKey, manual = currentManual()) {
+  const config = sectionComplianceConfig.find(([key]) => key === sectionKey);
+  if (!config) return [];
+  const [, label, aliases] = config;
+  const terms = [label, sectionKey, ...aliases].map((term) => String(term || "").toLowerCase());
+  return (manual.compliance || [])
+    .map((row) => normalizeFixedRow(row, "compliance"))
+    .filter((row) => {
+      const appliesTo = String(row[1] || "").toLowerCase();
+      const evidence = String(row[2] || "").toLowerCase();
+      const standard = String(row[0] || "").toLowerCase();
+      const haystack = `${appliesTo} ${evidence} ${standard}`;
+      return terms.some((term) => term && haystack.includes(term));
+    });
+}
+
+function sectionComplianceWarnings(sectionKey, manual = currentManual()) {
+  const warnings = [];
+  const assetIds = new Set((manual.equipment || []).map((row) => row[0]).filter(Boolean));
+  if (sectionKey === "compliance" && !(manual.compliance || []).length) warnings.push("No compliance items have been added to this folder yet.");
+  if (sectionKey === "maintenance") {
+    const maintenanceAssetIds = new Set((manual.maintenance || []).map((row) => row[0]).filter(Boolean));
+    const missing = [...assetIds].filter((assetId) => !maintenanceAssetIds.has(assetId));
+    if (missing.length) warnings.push(`${missing.length} asset(s) do not have a linked maintenance routine.`);
+  }
+  if (sectionKey === "warranties") {
+    const warrantyAssetIds = new Set((manual.warranties || []).map((row) => row[0]).filter(Boolean));
+    const missing = [...assetIds].filter((assetId) => !warrantyAssetIds.has(assetId));
+    if (missing.length) warnings.push(`${missing.length} asset(s) do not have a linked warranty record.`);
+  }
+  if (sectionKey === "certificates" && !(manual.certificates || []).length) warnings.push("No certificates are recorded for this folder.");
+  if (sectionKey === "asBuilts" && !(manual.asBuilts || []).length) warnings.push("No as-built drawings or models are recorded for this folder.");
+  if (sectionKey === "project" && !filled(state.fields.fmReviewAccepted)) warnings.push("FM / Owner review acceptance is not recorded.");
+  return warnings;
+}
+
+function reportTableHtml(headers, rows, emptyMessage = "No report data available.") {
+  if (!rows.length) return `<p class="empty-note">${escapeHtml(emptyMessage)}</p>`;
+  return `
+    <div class="report-table">
+      <table>
+        <thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead>
+        <tbody>
+          ${rows
+            .map((row) => `<tr>${headers.map((header) => `<td>${escapeHtml(row[header] ?? "")}</td>`).join("")}</tr>`)
+            .join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function completenessReportRows() {
+  const rows = [
+    {
+      Folder: "Project Details",
+      Section: "Project",
+      Status: completionStatusLabel(projectDashboardSection().percent),
+      Complete: `${projectDashboardSection().percent}%`,
+      Outstanding: projectDashboardSection().outstanding.join(", "),
+    },
+  ];
+  orderedManualFolders().forEach((folder) => {
+    dashboardSections(folder.data).forEach((section) => {
+      rows.push({
+        Folder: folderDisplayName(folder),
+        Section: section.label,
+        Status: completionStatusLabel(section.percent),
+        Complete: `${section.percent}%`,
+        Outstanding: section.outstanding.join(", "),
+      });
+    });
+  });
+  return rows;
+}
+
+function reviewStatusReportRows() {
+  return orderedManualFolders().flatMap((folder) =>
+    reviewSectionConfig.map(([sectionKey, sectionLabel]) => {
+      const review = folder.data.reviews?.[sectionKey] || cloneData(reviewDefaults);
+      return {
+        Folder: folderDisplayName(folder),
+        Section: sectionLabel,
+        Status: review.stage || "Draft",
+        Submitted: review.submittedDate ? formatDateAu(review.submittedDate) : "Not submitted",
+        "Submitted By": review.submittedBy || review.originator || "",
+        "Last Decision": review.decidedBy ? `${review.decidedBy} - ${formatDateTimeAu(review.decidedAt)}` : "No decision",
+        Comment: review.decisionComment || review.notes || "",
+      };
+    }),
+  );
+}
+
+function assetSummaryRows() {
+  const rows = orderedManualFolders().map((folder) => {
+    const totals = assetTotalsFromRows(folder.data.equipment || []);
+    return {
+      Folder: folderDisplayName(folder),
+      Assets: totals.assetCount,
+      "Asset Value": currencyAu(totals.totalValue),
+    };
+  });
+  const overall = assetTotalsFromRows(orderedManualFolders().flatMap((folder) => folder.data.equipment || []));
+  rows.unshift({ Folder: "Overall Manual", Assets: overall.assetCount, "Asset Value": currencyAu(overall.totalValue) });
+  return rows;
+}
+
+function renderReports() {
+  const target = document.querySelector("#reportsContent");
+  if (!target) return;
+  const assetRows = assetRegisterReportRows();
+  target.innerHTML = `
+    <section class="report-panel">
+      <div class="report-panel-head">
+        <h3>Manual Completeness Report</h3>
+        <p>Shows what has been completed and what is outstanding for each section.</p>
+      </div>
+      ${reportTableHtml(["Folder", "Section", "Status", "Complete", "Outstanding"], completenessReportRows())}
+    </section>
+    <section class="report-panel">
+      <div class="report-panel-head">
+        <h3>Review Status Report</h3>
+        <p>Shows the current review and approval status for each manual section.</p>
+      </div>
+      ${reportTableHtml(["Folder", "Section", "Status", "Submitted", "Submitted By", "Last Decision", "Comment"], reviewStatusReportRows())}
+    </section>
+    <section class="report-panel">
+      <div class="report-panel-head">
+        <h3>Asset Summary</h3>
+        <p>Total asset count and value by folder.</p>
+      </div>
+      ${reportTableHtml(["Folder", "Assets", "Asset Value"], assetSummaryRows())}
+    </section>
+    <section class="report-panel">
+      <div class="report-panel-head">
+        <h3>Asset Register Export Preview</h3>
+        <p>${assetRows.length} asset record(s) ready for Excel export.</p>
+      </div>
+      ${reportTableHtml(["Discipline", "Trade", "Sub-Trade", "Asset ID", "VBIS Code", "Description", "Quantity", "Retail Price", "Total Value"], assetRows)}
+    </section>
+  `;
+}
+
+function renderSectionComplianceChecks() {
+  const manual = currentManual();
+  sectionComplianceConfig.forEach(([sectionKey, label]) => {
+    const panel = document.querySelector(`[data-panel="${sectionKey}"]`);
+    if (!panel) return;
+    let box = panel.querySelector(".section-compliance-checks");
+    if (!box) {
+      box = document.createElement("section");
+      box.className = "section-compliance-checks";
+      const title = panel.querySelector(".section-title");
+      if (title?.nextSibling) panel.insertBefore(box, title.nextSibling);
+      else panel.insertBefore(box, panel.firstChild);
+    }
+    const items = complianceItemsForSection(sectionKey, manual);
+    const warnings = sectionComplianceWarnings(sectionKey, manual);
+    box.innerHTML = `
+      <h3>Compliance Checks</h3>
+      ${
+        items.length
+          ? `<ul class="section-compliance-list">${items
+              .slice(0, 5)
+              .map((row) => `<li><strong>${escapeHtml(row[0] || "Compliance item")}</strong>${row[1] ? ` - ${escapeHtml(row[1])}` : ""}${row[3] ? ` <span>${escapeHtml(row[3])}</span>` : ""}</li>`)
+              .join("")}</ul>`
+          : `<p>No compliance register items are linked to ${escapeHtml(label)}.</p>`
+      }
+      ${warnings.length ? `<ul class="section-compliance-warnings">${warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")}</ul>` : ""}
+    `;
+  });
 }
 
 function renderDashboard() {
@@ -4033,10 +4458,10 @@ function renderDashboard() {
                   <strong>${section.percent}%</strong>
                 </div>
               </div>
-              <div class="dashboard-progress" aria-label="${section.label} ${section.percent}% complete">
+              <div class="dashboard-progress ${completionClass(section.percent)}" aria-label="${section.label} ${section.percent}% complete">
                 <span style="width: ${section.percent}%"></span>
               </div>
-              <p>${section.percent === 100 ? "Done" : "Outstanding"}</p>
+              <p>${completionStatusLabel(section.percent)}</p>
               <span class="review-stage-badge">${escapeHtml(section.reviewStage || "Draft")}</span>
               <ul>
                 ${section.outstanding.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
@@ -4075,6 +4500,7 @@ function renderEditors() {
   renderRolePermissionsMatrix();
   renderAssetMandatoryFields();
   renderSectionAttachmentEditors();
+  renderSectionComplianceChecks();
   renderReviewPanels();
   renderContactsTeledex(manual.contacts);
   const assetSearch = document.querySelector("#assetQuickSearch");
@@ -4099,6 +4525,7 @@ function renderEditors() {
   renderLinkedAssetDescriptionCells();
   renderProjectImagePreview();
   renderDashboard();
+  renderReports();
   applyRolePermissions();
 }
 
@@ -4569,11 +4996,7 @@ function folderManualHtml(folder) {
 function manualLogoHtml() {
   return `
     <div class="manual-logo" aria-hidden="true">
-      <svg viewBox="0 0 96 96" role="img">
-        <path class="logo-building" d="M52 16h28v64H52zM58 24h6v7h-6zM69 24h6v7h-6zM58 37h6v7h-6zM69 37h6v7h-6zM58 50h6v7h-6zM69 50h6v7h-6zM61 66h12v14H61z" />
-        <path class="logo-person" d="M28 21a9 9 0 1 1 0 18 9 9 0 0 1 0-18zM15 79l4-29c1-6 5-10 11-10h1c5 0 9 3 11 8l3 9 12 5-4 8-15-6-4-10-3 25z" />
-        <path class="logo-manual" d="M42 45l23 7-5 22-23-7zM47 53l12 4M45 60l12 4" />
-      </svg>
+      <img src="assets/projectify-logo.png" alt="" />
     </div>
   `;
 }
@@ -4728,6 +5151,48 @@ function exportExcelWorkbook() {
   });
 
   XLSX.writeFile(workbook, "om-manual-builder-template.xlsx");
+}
+
+function exportAssetRegisterWorkbook() {
+  if (!spreadsheetReady()) {
+    alert("Asset Register export needs the spreadsheet library. It will load when the app is hosted on GitHub Pages with internet access.");
+    return;
+  }
+  const rows = assetRegisterReportRows();
+  const headers = [
+    "Discipline",
+    "Trade",
+    "Sub-Trade",
+    "Asset ID",
+    "Parent Asset ID",
+    "Description",
+    "VBIS Code",
+    "Discipline Name",
+    "Product Name",
+    "Sub-Type Name",
+    "Sub-Sub Type Name",
+    "Site Name",
+    "Structure Name",
+    "Level Name",
+    "Space Name",
+    "Location Description",
+    "Make",
+    "Model",
+    "Serial Number",
+    "Supplier",
+    "Quantity",
+    "Retail Price",
+    "Total Value",
+    "Install Date",
+    "Warranty Expiry Date",
+    "Life Expectancy (yrs)",
+    "Reference Information",
+    "Updated Date",
+    "Updated User",
+  ];
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, sheetFromObjects(headers, rows), "Asset Register");
+  XLSX.writeFile(workbook, "asset-register-fm-export.xlsx");
 }
 
 function importExcelWorkbook(workbook) {
@@ -5266,7 +5731,6 @@ document.querySelector("#projectDatabaseSelect").addEventListener("change", (eve
 document.querySelector("#loginSubmit").addEventListener("click", async () => {
   const username = document.querySelector("#loginUsername").value.trim();
   const password = document.querySelector("#loginPassword").value;
-  const confirmPassword = document.querySelector("#loginConfirmPassword").value;
   const client = initialiseSupabaseClient();
   if (client) {
     if (!username || !password) {
@@ -5300,10 +5764,6 @@ document.querySelector("#loginSubmit").addEventListener("click", async () => {
     return;
   }
   if (!profile) {
-    if (password !== confirmPassword) {
-      setLoginMessage("Passwords do not match.");
-      return;
-    }
     if (!saveLoginProfile(username, password)) {
       setLoginMessage("Login could not be saved in this browser.");
       return;
@@ -5339,10 +5799,6 @@ document.querySelector("#loginProjectSelect").addEventListener("change", (event)
   const openButton = document.querySelector("#loginOpenProject");
   if (openButton) openButton.disabled = !event.target.value;
   setLoginMessage(event.target.value ? "" : "Select a saved project first.");
-});
-
-document.querySelector("#loginNewProject").addEventListener("click", async () => {
-  await startNewProjectFromLogin();
 });
 
 document.querySelector("#loginContinueDraft").addEventListener("click", () => {
@@ -5410,6 +5866,10 @@ document.querySelector("#deleteProjectRecord").addEventListener("click", async (
 
 document.querySelector("#exportExcel").addEventListener("click", () => {
   exportExcelWorkbook();
+});
+
+document.querySelector("#exportAssetRegisterReport")?.addEventListener("click", () => {
+  exportAssetRegisterWorkbook();
 });
 
 document.querySelector("#importExcel").addEventListener("click", () => {
